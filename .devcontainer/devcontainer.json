@@ -1,10 +1,10 @@
 {
-  "name": "plugin-template",
+  "name": "plugin-digitalocean",
   "build": {
     "context": ".",
     "dockerfile": "Dockerfile"
   },
-  "workspaceFolder": "/workspaces/plugin-template",
+  "workspaceFolder": "/workspaces/plugin-digitalocean",
   "forwardPorts": [8080],
   "customizations": {
     "vscode": {
