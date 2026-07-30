@@ -68,6 +68,6 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("DELETE");
         request(runContext, options, rApiToken, requestBuilder, String.class);
 
-        return new VoidOutput();
+        return null;
     }
 }

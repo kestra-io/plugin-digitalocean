@@ -93,6 +93,6 @@ public class Resize extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
         request(runContext, options, rApiToken, requestBuilder, String.class);
 
-        return new VoidOutput();
+        return null;
     }
 }
