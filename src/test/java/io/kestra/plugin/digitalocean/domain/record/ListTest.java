@@ -1,4 +1,4 @@
-package io.kestra.plugin.digitalocean.domain;
+package io.kestra.plugin.digitalocean.domain.record;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import io.kestra.core.http.client.HttpClientResponseException;
@@ -15,10 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ListTest extends AbstractDigitalOceanTest {
 
-    private static final String DOMAINS_JSON = """
+    private static final String RECORDS_JSON = """
         {
-          "domains": [
-            {"name": "example.com", "ttl": 1800, "zone_file": null}
+          "domain_records": [
+            {"id": 12345, "type": "A", "name": "www", "data": "104.131.186.241", "ttl": 3600}
           ],
           "links": {"pages": {}},
           "meta": {"total": 1}
@@ -26,32 +26,34 @@ class ListTest extends AbstractDigitalOceanTest {
         """;
 
     @Test
-    void listsDomainsAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
-        stubGetJson("/v2/domains", DOMAINS_JSON);
+    void listsRecordsAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubGetJson("/v2/domains/example.com/records", RECORDS_JSON);
 
         var task = List.builder()
             .id("list-test")
             .type(List.class.getName())
             .apiToken(Property.ofValue("test-token"))
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .domain(Property.ofValue("example.com"))
             .build();
 
         var output = task.run(runContext());
 
         assertThat(output.getTotal(), is(1L));
-        assertThat(output.getRows().getFirst().get("name"), is("example.com"));
-        verifyBearer(getRequestedFor(urlPathEqualTo("/v2/domains")), "test-token");
+        assertThat(output.getRows().getFirst().get("name"), is("www"));
+        verifyBearer(getRequestedFor(urlPathEqualTo("/v2/domains/example.com/records")), "test-token");
     }
 
     @Test
     void failsWithClearMessageOnRateLimit(WireMockRuntimeInfo wireMockRuntimeInfo) {
-        stubStatusWithHeader("/v2/domains", 429, "{\"message\":\"too many requests\"}", "retry-after", "6");
+        stubStatusWithHeader("/v2/domains/example.com/records", 429, "{\"message\":\"too many requests\"}", "retry-after", "8");
 
         var task = List.builder()
             .id("list-429-test")
             .type(List.class.getName())
             .apiToken(Property.ofValue("test-token"))
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .domain(Property.ofValue("example.com"))
             .build();
 
         var runContext = runContext();

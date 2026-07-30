@@ -40,14 +40,39 @@ pagination automatically and reporting the API's `total` count regardless of `fe
   replaces the full configuration, not a partial patch: `Update` always requires `name`, `region`, and
   `forwardingRules` again, even to change a single field.
 - **`volume`**: `List`, `Get`, `Create`, `Delete`, `Attach`, and `Detach`.
-- **`domain`**: `List`, `Get`, `Create`, and `Delete` for DNS records under a domain already managed by
-  DigitalOcean (`/v2/domains/{domain}/records`). `domain` is a required property on every task in this
-  package.
+- **`domain`**: `List`, `Get`, `Create`, and `Delete` for domain zones themselves (`/v2/domains`), the
+  DNS-hosting equivalent of a droplet or a load balancer: the resource that exists on the account, not the
+  records inside it.
+- **`domain.record`**: `List`, `Get`, `Create`, and `Delete` for DNS records within a zone
+  (`/v2/domains/{domain}/records`). `domain` (the zone name, e.g. example.com) is a required property on
+  every task in this package. A zone must already exist (via `domain.Create`) before records can be added
+  to it.
 - **`firewall`**: `List`, `Get`, `Create`, and `Delete`.
 
 Nested inputs that are inherently a list of objects (Kubernetes node pools, load balancer forwarding
 rules, firewall inbound/outbound rules) are modeled as `Property<List<Map<String, Object>>>`, following
 DigitalOcean's own JSON shape for each field, rather than a dedicated type per rule variant.
+
+### Creating a zone and a record together
+
+```yaml
+id: digitalocean_setup_dns
+namespace: company.team
+
+tasks:
+  - id: create_domain
+    type: io.kestra.plugin.digitalocean.domain.Create
+    apiToken: "{{ secret('DIGITALOCEAN_TOKEN') }}"
+    name: "example.com"
+    ipAddress: "104.131.186.241"
+  - id: create_record
+    type: io.kestra.plugin.digitalocean.domain.record.Create
+    apiToken: "{{ secret('DIGITALOCEAN_TOKEN') }}"
+    domain: "example.com"
+    recordType: "A"
+    name: "www"
+    data: "104.131.186.241"
+```
 
 ## Triggers
 

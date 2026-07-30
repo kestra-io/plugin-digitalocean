@@ -24,57 +24,50 @@ import java.net.URI;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Get a DigitalOcean DNS record",
-    description = "Reads a single DNS record's details from the DigitalOcean API."
+    title = "Get a DigitalOcean domain zone",
+    description = "Reads a single domain zone's details from the DigitalOcean API."
 )
 @Plugin(
     examples = {
         @Example(
-            title = "Get a DNS record and log its data",
+            title = "Get a domain zone and log its TTL",
             full = true,
             code = """
-                id: digitalocean_get_record
+                id: digitalocean_get_domain
                 namespace: company.team
 
                 tasks:
-                  - id: get_record
+                  - id: get_domain
                     type: io.kestra.plugin.digitalocean.domain.Get
                     apiToken: "{{ secret('DIGITALOCEAN_TOKEN') }}"
-                    domain: "example.com"
-                    recordId: "12345"
-                  - id: log_data
+                    name: "example.com"
+                  - id: log_ttl
                     type: io.kestra.plugin.core.log.Log
-                    message: "Record {{ outputs.get_record.name }} points to {{ outputs.get_record.data }}"
+                    message: "Domain {{ outputs.get_domain.name }} has a default TTL of {{ outputs.get_domain.ttl }}s"
                 """
         )
     }
 )
-public class Get extends AbstractDigitalOceanTask implements RunnableTask<DomainRecordOutput> {
+public class Get extends AbstractDigitalOceanTask implements RunnableTask<DomainOutput> {
 
-    @Schema(title = "Domain", description = "Domain name the record belongs to, e.g. example.com.")
+    @Schema(title = "Domain name", description = "Fully qualified zone name to read, e.g. example.com.")
     @NotNull
     @PluginProperty(group = "main")
-    private Property<String> domain;
-
-    @Schema(title = "Record ID", description = "Numeric identifier of the DNS record to read.")
-    @NotNull
-    @PluginProperty(group = "main")
-    private Property<String> recordId;
+    private Property<String> name;
 
     @Override
-    public DomainRecordOutput run(RunContext runContext) throws Exception {
+    public DomainOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rDomain = runContext.render(domain).as(String.class).orElseThrow(() -> new IllegalArgumentException("domain is required"));
-        var rRecordId = runContext.render(recordId).as(String.class).orElseThrow(() -> new IllegalArgumentException("recordId is required"));
+        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
-        logger.info("Fetching DNS record {} for domain {}", rRecordId, rDomain);
+        logger.info("Fetching DigitalOcean domain zone {}", rName);
 
-        var url = join(rBaseUrl, "v2/domains/" + encodePathSegment(rDomain) + "/records/" + encodePathSegment(rRecordId));
+        var url = join(rBaseUrl, "v2/domains/" + encodePathSegment(rName));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 
-        return DomainRecordOutput.from(unwrap(body, "domain_record"));
+        return DomainOutput.from(unwrap(body, "domain"));
     }
 }

@@ -1,4 +1,4 @@
-package io.kestra.plugin.digitalocean.domain;
+package io.kestra.plugin.digitalocean.domain.record;
 
 import io.kestra.core.http.HttpRequest;
 import io.kestra.core.models.annotations.Example;
@@ -25,44 +25,51 @@ import java.net.URI;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Delete a DigitalOcean domain zone",
-    description = "Permanently removes a domain zone and all of its DNS records. This cannot be undone."
+    title = "Delete a DigitalOcean DNS record",
+    description = "Permanently removes a DNS record from a domain. This cannot be undone."
 )
 @Plugin(
     examples = {
         @Example(
-            title = "Delete a domain zone",
+            title = "Delete a DNS record",
             full = true,
             code = """
-                id: digitalocean_delete_domain
+                id: digitalocean_delete_record
                 namespace: company.team
 
                 tasks:
-                  - id: delete_domain
-                    type: io.kestra.plugin.digitalocean.domain.Delete
+                  - id: delete_record
+                    type: io.kestra.plugin.digitalocean.domain.record.Delete
                     apiToken: "{{ secret('DIGITALOCEAN_TOKEN') }}"
-                    name: "example.com"
+                    domain: "example.com"
+                    recordId: "12345"
                 """
         )
     }
 )
 public class Delete extends AbstractDigitalOceanTask implements RunnableTask<VoidOutput> {
 
-    @Schema(title = "Domain name", description = "Fully qualified zone name to delete, e.g. example.com.")
+    @Schema(title = "Domain", description = "Domain name the record belongs to, e.g. example.com.")
     @NotNull
     @PluginProperty(group = "main")
-    private Property<String> name;
+    private Property<String> domain;
+
+    @Schema(title = "Record ID", description = "Numeric identifier of the DNS record to delete.")
+    @NotNull
+    @PluginProperty(group = "main")
+    private Property<String> recordId;
 
     @Override
     public VoidOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
+        var rDomain = runContext.render(domain).as(String.class).orElseThrow(() -> new IllegalArgumentException("domain is required"));
+        var rRecordId = runContext.render(recordId).as(String.class).orElseThrow(() -> new IllegalArgumentException("recordId is required"));
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
-        logger.info("Deleting DigitalOcean domain zone {}", rName);
+        logger.info("Deleting DNS record {} for domain {}", rRecordId, rDomain);
 
-        var url = join(rBaseUrl, "v2/domains/" + encodePathSegment(rName));
+        var url = join(rBaseUrl, "v2/domains/" + encodePathSegment(rDomain) + "/records/" + encodePathSegment(rRecordId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("DELETE");
         request(runContext, options, rApiToken, requestBuilder, String.class);
 

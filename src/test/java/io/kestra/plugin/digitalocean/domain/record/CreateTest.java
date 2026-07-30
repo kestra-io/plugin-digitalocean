@@ -1,4 +1,4 @@
-package io.kestra.plugin.digitalocean.domain;
+package io.kestra.plugin.digitalocean.domain.record;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import io.kestra.core.http.client.HttpClientResponseException;
@@ -15,42 +15,47 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CreateTest extends AbstractDigitalOceanTest {
 
-    private static final String DOMAIN_JSON = """
+    private static final String RECORD_JSON = """
         {
-          "domain": {"name": "example.com", "ttl": 1800, "zone_file": null}
+          "domain_record": {"id": 12346, "type": "A", "name": "api", "data": "104.131.186.242", "ttl": 1800}
         }
         """;
 
     @Test
-    void createsDomainAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
-        stubPostJson("/v2/domains", 201, DOMAIN_JSON);
+    void createsRecordAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/domains/example.com/records", 201, RECORD_JSON);
 
         var task = Create.builder()
             .id("create-test")
             .type(Create.class.getName())
             .apiToken(Property.ofValue("test-token"))
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
-            .name(Property.ofValue("example.com"))
-            .ipAddress(Property.ofValue("104.131.186.241"))
+            .domain(Property.ofValue("example.com"))
+            .recordType(Property.ofValue("A"))
+            .name(Property.ofValue("api"))
+            .data(Property.ofValue("104.131.186.242"))
             .build();
 
         var output = task.run(runContext());
 
-        assertThat(output.getName(), is("example.com"));
-        assertThat(output.getTtl(), is(1800));
-        verifyBearer(postRequestedFor(urlPathEqualTo("/v2/domains")), "test-token");
+        assertThat(output.getId(), is(12346L));
+        assertThat(output.getName(), is("api"));
+        verifyBearer(postRequestedFor(urlPathEqualTo("/v2/domains/example.com/records")), "test-token");
     }
 
     @Test
     void failsWithClearMessageOnInvalidToken(WireMockRuntimeInfo wireMockRuntimeInfo) {
-        stubPostJson("/v2/domains", 401, "{\"message\":\"Unable to authenticate you\"}");
+        stubPostJson("/v2/domains/example.com/records", 401, "{\"message\":\"Unable to authenticate you\"}");
 
         var task = Create.builder()
             .id("create-401-test")
             .type(Create.class.getName())
             .apiToken(Property.ofValue("bad-token"))
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
-            .name(Property.ofValue("example.com"))
+            .domain(Property.ofValue("example.com"))
+            .recordType(Property.ofValue("A"))
+            .name(Property.ofValue("api"))
+            .data(Property.ofValue("104.131.186.242"))
             .build();
 
         var runContext = runContext();

@@ -1,6 +1,8 @@
 @PluginSubGroup(
     title = "Domains",
-    description = "Tasks for managing DNS records of a DigitalOcean domain: list, read, create, and delete records.",
+    description = "Tasks for managing DigitalOcean domain zones (the /v2/domains resource itself): list, " +
+        "read, create, and delete zones. DNS records within a zone are managed by the child package " +
+        "io.kestra.plugin.digitalocean.domain.record.",
     categories = PluginSubGroup.PluginCategory.CLOUD
 )
 package io.kestra.plugin.digitalocean.domain;

@@ -45,7 +45,7 @@
 
 ## What
 
-- Provides plugin components under `io.kestra.plugin.digitalocean`, covering droplets, Kubernetes clusters, managed databases, load balancers, block storage volumes, DNS records, and cloud firewalls.
+- Provides plugin components under `io.kestra.plugin.digitalocean`, covering droplets, Kubernetes clusters, managed databases, load balancers, block storage volumes, domain zones (`domain`) and their DNS records (`domain.record`), and cloud firewalls.
 - Includes a polling trigger, `droplet.Trigger`, that fires when a new droplet appears on the account.
 
 ## Documentation

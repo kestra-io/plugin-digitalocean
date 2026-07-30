@@ -1,4 +1,4 @@
-package io.kestra.plugin.digitalocean.domain;
+package io.kestra.plugin.digitalocean.domain.record;
 
 import io.kestra.core.models.tasks.Output;
 import io.swagger.v3.oas.annotations.media.Schema;

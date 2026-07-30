@@ -1,4 +1,4 @@
-package io.kestra.plugin.digitalocean.domain;
+package io.kestra.plugin.digitalocean.domain.record;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import io.kestra.core.http.client.HttpClientResponseException;
@@ -18,32 +18,34 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class DeleteTest extends AbstractDigitalOceanTest {
 
     @Test
-    void deletesDomainAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
-        stubFor(delete(urlPathEqualTo("/v2/domains/example.com")).willReturn(aResponse().withStatus(204)));
+    void deletesRecordAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubFor(delete(urlPathEqualTo("/v2/domains/example.com/records/12345")).willReturn(aResponse().withStatus(204)));
 
         var task = Delete.builder()
             .id("delete-test")
             .type(Delete.class.getName())
             .apiToken(Property.ofValue("test-token"))
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
-            .name(Property.ofValue("example.com"))
+            .domain(Property.ofValue("example.com"))
+            .recordId(Property.ofValue("12345"))
             .build();
 
         task.run(runContext());
 
-        verifyBearer(deleteRequestedFor(urlPathEqualTo("/v2/domains/example.com")), "test-token");
+        verifyBearer(deleteRequestedFor(urlPathEqualTo("/v2/domains/example.com/records/12345")), "test-token");
     }
 
     @Test
     void failsWithClearMessageWhenNotFound(WireMockRuntimeInfo wireMockRuntimeInfo) {
-        stubFor(delete(urlPathEqualTo("/v2/domains/missing.com")).willReturn(aResponse().withStatus(404).withBody("{\"message\":\"not found\"}")));
+        stubFor(delete(urlPathEqualTo("/v2/domains/example.com/records/999")).willReturn(aResponse().withStatus(404).withBody("{\"message\":\"not found\"}")));
 
         var task = Delete.builder()
             .id("delete-404-test")
             .type(Delete.class.getName())
             .apiToken(Property.ofValue("test-token"))
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
-            .name(Property.ofValue("missing.com"))
+            .domain(Property.ofValue("example.com"))
+            .recordId(Property.ofValue("999"))
             .build();
 
         var runContext = runContext();
