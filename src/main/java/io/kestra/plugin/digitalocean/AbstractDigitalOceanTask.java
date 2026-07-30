@@ -338,6 +338,11 @@ public abstract class AbstractDigitalOceanTask extends Task {
             url = pages != null && pages.get("next") != null ? String.valueOf(pages.get("next")) : null;
         }
 
+        // Some DigitalOcean list endpoints (databases is one) return the items but leave meta.total
+        // unset or zero. fetchAllPages already follows every links.pages.next page, so the collected
+        // items list is the true complete result set: it can only ever under-report, never over-report.
+        total = Math.max(total, items.size());
+
         return new FetchAllResult(items, total);
     }
 
