@@ -64,7 +64,7 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
         logger.info("Deleting DigitalOcean load balancer {}", rLoadBalancerId);
 
-        var url = join(rBaseUrl, "v2/load_balancers/" + rLoadBalancerId);
+        var url = join(rBaseUrl, "v2/load_balancers/" + encodePathSegment(rLoadBalancerId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("DELETE");
         request(runContext, options, rApiToken, requestBuilder, String.class);
 

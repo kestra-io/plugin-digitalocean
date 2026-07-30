@@ -10,7 +10,6 @@ import io.kestra.core.models.tasks.VoidOutput;
 import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -66,7 +65,6 @@ public class Resize extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
     @Schema(title = "Number of nodes", description = "New number of nodes in the cluster, from 1 (no standby) to 3. Defaults to 1.")
     @Builder.Default
-    @Min(1)
     @PluginProperty(group = "main")
     private Property<Integer> numNodes = Property.ofValue(1);
 
@@ -77,7 +75,7 @@ public class Resize extends AbstractDigitalOceanTask implements RunnableTask<Voi
             () -> new IllegalArgumentException("databaseId is required")
         );
         var rSize = runContext.render(size).as(String.class).orElseThrow(() -> new IllegalArgumentException("size is required"));
-        var rNumNodes = runContext.render(numNodes).as(Integer.class).orElse(1);
+        var rNumNodes = requireInRange("numNodes", runContext.render(numNodes).as(Integer.class).orElse(1), 1, 3);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
@@ -87,7 +85,7 @@ public class Resize extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
         logger.info("Resizing DigitalOcean database cluster {} to {}", rDatabaseId, rSize);
 
-        var url = join(rBaseUrl, "v2/databases/" + rDatabaseId + "/resize");
+        var url = join(rBaseUrl, "v2/databases/" + encodePathSegment(rDatabaseId) + "/resize");
         var requestBuilder = HttpRequest.builder()
             .uri(URI.create(url))
             .method("PUT")

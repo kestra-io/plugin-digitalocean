@@ -9,8 +9,6 @@ import io.kestra.core.models.tasks.common.FetchType;
 import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -58,8 +56,6 @@ public class List extends AbstractDigitalOceanTask implements RunnableTask<Abstr
 
     @Schema(title = "Page size", description = "Number of records requested per page. Defaults to 200, the maximum allowed by the DigitalOcean API.")
     @Builder.Default
-    @Min(1)
-    @Max(200)
     @PluginProperty(group = "processing")
     private Property<Integer> perPage = Property.ofValue(200);
 
@@ -76,13 +72,13 @@ public class List extends AbstractDigitalOceanTask implements RunnableTask<Abstr
     public PageOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
         var rDomain = runContext.render(domain).as(String.class).orElseThrow(() -> new IllegalArgumentException("domain is required"));
-        var rPerPage = runContext.render(perPage).as(Integer.class).orElse(200);
+        var rPerPage = requireInRange("perPage", runContext.render(perPage).as(Integer.class).orElse(200), 1, 200);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
         logger.info("Listing DNS records for domain {}", rDomain);
 
-        var result = fetchAllPages(runContext, options, rApiToken, rBaseUrl, "v2/domains/" + rDomain + "/records", rPerPage, "domain_records");
+        var result = fetchAllPages(runContext, options, rApiToken, rBaseUrl, "v2/domains/" + encodePathSegment(rDomain) + "/records", rPerPage, "domain_records");
 
         logger.info("Found {} record(s)", result.total());
 

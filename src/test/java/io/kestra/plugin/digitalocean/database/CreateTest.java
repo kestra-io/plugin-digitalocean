@@ -65,4 +65,24 @@ class CreateTest extends AbstractDigitalOceanTest {
         var ex = assertThrows(HttpClientResponseException.class, () -> task.run(runContext));
         assertThat(ex.getMessage(), containsString("invalid or missing API token"));
     }
+
+    @Test
+    void failsWithClearMessageWhenNumNodesExceedsMaximum(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        var task = Create.builder()
+            .id("create-too-many-nodes-test")
+            .type(Create.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .name(Property.ofValue("prod-mysql"))
+            .engine(Property.ofValue("mysql"))
+            .engineVersion(Property.ofValue("8"))
+            .region(Property.ofValue("nyc1"))
+            .size(Property.ofValue("db-s-1vcpu-1gb"))
+            .numNodes(Property.ofValue(4))
+            .build();
+
+        var runContext = runContext();
+        var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
+        assertThat(ex.getMessage(), containsString("numNodes must be between 1 and 3"));
+    }
 }

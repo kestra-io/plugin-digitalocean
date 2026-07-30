@@ -9,7 +9,6 @@ import io.kestra.core.models.tasks.RunnableTask;
 import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -83,7 +82,6 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dat
 
     @Schema(title = "Number of nodes", description = "Number of nodes in the cluster, from 1 (no standby) to 3. Defaults to 1.")
     @Builder.Default
-    @Min(1)
     @PluginProperty(group = "main")
     private Property<Integer> numNodes = Property.ofValue(1);
 
@@ -95,7 +93,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dat
         var rVersion = runContext.render(engineVersion).as(String.class).orElseThrow(() -> new IllegalArgumentException("engineVersion is required"));
         var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
         var rSize = runContext.render(size).as(String.class).orElseThrow(() -> new IllegalArgumentException("size is required"));
-        var rNumNodes = runContext.render(numNodes).as(Integer.class).orElse(1);
+        var rNumNodes = requireInRange("numNodes", runContext.render(numNodes).as(Integer.class).orElse(1), 1, 3);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

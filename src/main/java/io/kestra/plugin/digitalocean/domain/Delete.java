@@ -69,7 +69,7 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
         logger.info("Deleting DNS record {} for domain {}", rRecordId, rDomain);
 
-        var url = join(rBaseUrl, "v2/domains/" + rDomain + "/records/" + rRecordId);
+        var url = join(rBaseUrl, "v2/domains/" + encodePathSegment(rDomain) + "/records/" + encodePathSegment(rRecordId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("DELETE");
         request(runContext, options, rApiToken, requestBuilder, String.class);
 

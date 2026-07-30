@@ -71,7 +71,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Domain
 
         logger.info("Fetching DNS record {} for domain {}", rRecordId, rDomain);
 
-        var url = join(rBaseUrl, "v2/domains/" + rDomain + "/records/" + rRecordId);
+        var url = join(rBaseUrl, "v2/domains/" + encodePathSegment(rDomain) + "/records/" + encodePathSegment(rRecordId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 

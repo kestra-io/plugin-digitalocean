@@ -1,5 +1,6 @@
 package io.kestra.plugin.digitalocean.droplet;
 
+import io.kestra.core.exceptions.ResourceExpiredException;
 import io.kestra.core.http.client.configurations.HttpConfiguration;
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
@@ -14,6 +15,7 @@ import io.kestra.core.models.triggers.TriggerOutput;
 import io.kestra.core.models.triggers.TriggerService;
 import io.kestra.core.storages.kv.KVMetadata;
 import io.kestra.core.storages.kv.KVStore;
+import io.kestra.core.storages.kv.KVValue;
 import io.kestra.core.storages.kv.KVValueAndMetadata;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,7 +26,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -139,7 +143,7 @@ public class Trigger extends AbstractTrigger implements PollingTriggerInterface,
         var ttl = interval.multipliedBy(10);
         var key = kvKey(context.getFlowId(), context.getTriggerId());
 
-        var previous = kv.getValue(key);
+        var previous = getSeenIdsValue(kv, key, logger);
         if (previous.isEmpty()) {
             logger.info("Establishing droplet baseline: {} existing droplet(s)", currentIds.size());
             persistSeenIds(kv, key, currentIds, ttl);
@@ -189,6 +193,20 @@ public class Trigger extends AbstractTrigger implements PollingTriggerInterface,
      */
     private static String kvKey(String flowId, String triggerId) {
         return "digitalocean_droplet_trigger_" + flowId.length() + "_" + flowId + "_" + triggerId.length() + "_" + triggerId;
+    }
+
+    /**
+     * A KV entry whose TTL has lapsed surfaces as {@link ResourceExpiredException} rather than an empty
+     * {@link Optional}. Treat it the same as "no baseline yet" instead of letting it fail the whole
+     * evaluation, so the trigger simply re-establishes a fresh baseline on the next poll.
+     */
+    private static Optional<KVValue> getSeenIdsValue(KVStore kv, String key, Logger logger) throws IOException {
+        try {
+            return kv.getValue(key);
+        } catch (ResourceExpiredException e) {
+            logger.debug("Droplet watermark for key {} expired, re-establishing baseline", key);
+            return Optional.empty();
+        }
     }
 
     private static Set<String> parseSeenIds(Object raw) {

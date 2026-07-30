@@ -66,7 +66,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Databa
 
         logger.info("Fetching DigitalOcean database cluster {}", rDatabaseId);
 
-        var url = join(rBaseUrl, "v2/databases/" + rDatabaseId);
+        var url = join(rBaseUrl, "v2/databases/" + encodePathSegment(rDatabaseId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 

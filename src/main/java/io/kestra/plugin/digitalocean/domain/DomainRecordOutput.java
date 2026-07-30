@@ -19,7 +19,7 @@ public class DomainRecordOutput implements Output {
     @Schema(title = "Record ID")
     private final Long id;
 
-    @Schema(title = "Record type", description = "One of A, AAAA, CNAME, MX, TXT, SRV, NS, CAA, or TXT.")
+    @Schema(title = "Record type", description = "One of A, AAAA, CNAME, MX, TXT, SRV, NS, or CAA.")
     private final String type;
 
     @Schema(title = "Record name", description = "Host name, alias, or service being defined by the record, relative to the domain.")

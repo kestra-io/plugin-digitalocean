@@ -61,4 +61,21 @@ class CreateTest extends AbstractDigitalOceanTest {
         var ex = assertThrows(HttpClientResponseException.class, () -> task.run(runContext));
         assertThat(ex.getMessage(), containsString("invalid or missing API token"));
     }
+
+    @Test
+    void failsWithClearMessageWhenSizeExceedsMaximum(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        var task = Create.builder()
+            .id("create-too-large-test")
+            .type(Create.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .name(Property.ofValue("backup-volume"))
+            .region(Property.ofValue("nyc3"))
+            .sizeGigabytes(Property.ofValue(20000L))
+            .build();
+
+        var runContext = runContext();
+        var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
+        assertThat(ex.getMessage(), containsString("sizeGigabytes must be between 1 and 16384"));
+    }
 }

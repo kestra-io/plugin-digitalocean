@@ -66,7 +66,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Firewa
 
         logger.info("Fetching DigitalOcean firewall {}", rFirewallId);
 
-        var url = join(rBaseUrl, "v2/firewalls/" + rFirewallId);
+        var url = join(rBaseUrl, "v2/firewalls/" + encodePathSegment(rFirewallId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 

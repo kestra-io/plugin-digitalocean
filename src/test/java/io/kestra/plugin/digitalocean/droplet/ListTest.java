@@ -83,4 +83,19 @@ class ListTest extends AbstractDigitalOceanTest {
         assertThat(ex.getMessage(), containsString("rate limit"));
         assertThat(ex.getMessage(), containsString("30"));
     }
+
+    @Test
+    void failsWithClearMessageWhenPerPageExceedsMaximum(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        var task = List.builder()
+            .id("list-too-large-page-test")
+            .type(List.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .perPage(Property.ofValue(500))
+            .build();
+
+        var runContext = runContext();
+        var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
+        assertThat(ex.getMessage(), containsString("perPage must be between 1 and 200"));
+    }
 }

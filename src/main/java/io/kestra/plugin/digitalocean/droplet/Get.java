@@ -66,7 +66,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Drople
 
         logger.info("Fetching DigitalOcean droplet {}", rDropletId);
 
-        var url = join(rBaseUrl, "v2/droplets/" + rDropletId);
+        var url = join(rBaseUrl, "v2/droplets/" + encodePathSegment(rDropletId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 

@@ -9,7 +9,6 @@ import io.kestra.core.models.tasks.RunnableTask;
 import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -64,7 +63,6 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Vol
 
     @Schema(title = "Size in GiB", description = "Volume size in gibibytes, from 1 up to 16384 (16 TiB).")
     @NotNull
-    @Min(1)
     @PluginProperty(group = "main")
     private Property<Long> sizeGigabytes;
 
@@ -81,7 +79,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Vol
         var logger = runContext.logger();
         var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
         var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
-        var rSizeGigabytes = runContext.render(sizeGigabytes).as(Long.class).orElseThrow(() -> new IllegalArgumentException("sizeGigabytes is required"));
+        var rSizeGigabytes = requireInRange("sizeGigabytes", runContext.render(sizeGigabytes).as(Long.class).orElseThrow(() -> new IllegalArgumentException("sizeGigabytes is required")), 1, 16384);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

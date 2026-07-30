@@ -72,11 +72,11 @@ public class Detach extends AbstractDigitalOceanTask implements RunnableTask<Abs
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
-        var payload = VolumeActionPayload.build("detach", Long.valueOf(rDropletId), rRegion);
+        var payload = VolumeActionPayload.build("detach", VolumeActionPayload.parseDropletId(rDropletId), rRegion);
 
         logger.info("Detaching DigitalOcean volume {} from droplet {}", rVolumeId, rDropletId);
 
-        var url = join(rBaseUrl, "v2/volumes/" + rVolumeId + "/actions");
+        var url = join(rBaseUrl, "v2/volumes/" + encodePathSegment(rVolumeId) + "/actions");
         var requestBuilder = HttpRequest.builder()
             .uri(URI.create(url))
             .method("POST")

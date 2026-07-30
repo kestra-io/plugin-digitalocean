@@ -9,11 +9,14 @@ import io.kestra.core.models.property.Property;
 import io.kestra.core.models.triggers.TriggerContext;
 import io.kestra.core.runners.DefaultRunContext;
 import io.kestra.core.runners.RunContextInitializer;
+import io.kestra.core.storages.kv.KVMetadata;
+import io.kestra.core.storages.kv.KVValueAndMetadata;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.Optional;
@@ -136,5 +139,32 @@ class TriggerTest extends AbstractDigitalOceanTest {
         var triggerVars = (Map<String, Object>) result.get().getTrigger().getVariables();
         assertThat(triggerVars.get("id"), is(2L));
         assertThat(triggerVars.get("name"), is("new-droplet"));
+    }
+
+    @Test
+    void reestablishesBaselineWhenWatermarkExpired(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        triggerId = buildTriggerId();
+        stubGetJson("/v2/droplets", """
+            {"droplets": [{"id": 1, "name": "existing", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"}], "links": {"pages": {}}, "meta": {"total": 1}}
+            """);
+
+        var trigger = buildTrigger(wireMockRuntimeInfo.getHttpBaseUrl());
+        var trigCtx = triggerContext("test-flow");
+        var condCtx = conditionContext(trigger, trigCtx, "test-flow");
+
+        // Seed an already-expired watermark entry, simulating a KV TTL that lapsed between polls; reading
+        // it back throws ResourceExpiredException instead of returning Optional.empty().
+        var flowId = "test-flow";
+        var key = "digitalocean_droplet_trigger_" + flowId.length() + "_" + flowId + "_" + triggerId.length() + "_" + triggerId;
+        var kv = condCtx.getRunContext().namespaceKv("company.team");
+        kv.put(key, new KVValueAndMetadata(new KVMetadata(null, Instant.now().minusSeconds(60)), "999"));
+
+        var result = trigger.evaluate(condCtx, trigCtx);
+
+        assertThat("an expired watermark must not fail evaluation nor fire", result.isEmpty(), is(true));
+
+        var refreshed = kv.getValue(key);
+        assertThat("baseline must be re-established with the current droplet ids", refreshed.isPresent(), is(true));
+        assertThat(refreshed.get().value(), is("1"));
     }
 }

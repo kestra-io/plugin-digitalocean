@@ -64,7 +64,7 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
         logger.info("Deleting DigitalOcean volume {}", rVolumeId);
 
-        var url = join(rBaseUrl, "v2/volumes/" + rVolumeId);
+        var url = join(rBaseUrl, "v2/volumes/" + encodePathSegment(rVolumeId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("DELETE");
         request(runContext, options, rApiToken, requestBuilder, String.class);
 

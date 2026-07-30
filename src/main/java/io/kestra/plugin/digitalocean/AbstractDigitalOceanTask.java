@@ -27,6 +27,7 @@ import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -202,6 +203,16 @@ public abstract class AbstractDigitalOceanTask extends Task {
     }
 
     /**
+     * URL-encodes a single dynamic path segment (a droplet id, domain name, record id, ...) before it is
+     * concatenated into a request path. {@link java.net.URLEncoder} encodes for form/query context and
+     * turns a space into {@code +}, which is not valid in a URL path, so it is rewritten to {@code %20}.
+     * Never apply this to a static path prefix (e.g. {@code "v2/droplets/"}) or to the slash separators.
+     */
+    public static String encodePathSegment(String segment) {
+        return URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
+    /**
      * Unwraps a singular resource key (e.g. "droplet", "kubernetes_cluster") from a DigitalOcean JSON
      * response, failing with a clear message instead of a raw NullPointerException if the API's response
      * shape ever changes.
@@ -228,6 +239,28 @@ public abstract class AbstractDigitalOceanTask extends Task {
 
     public static Integer asInteger(Object value) {
         return value instanceof Number number ? number.intValue() : null;
+    }
+
+    /**
+     * Enforces a numeric range at render time. jakarta.validation's {@code @Min}/{@code @Max} annotations
+     * cannot be placed directly on a {@code Property<Integer>} or {@code Property<Long>} field: the
+     * built-in constraint validators only support {@link Number} and {@link CharSequence}, so Kestra's
+     * {@code ModelValidator} throws {@code UnexpectedTypeException} the moment any flow using the task is
+     * validated, regardless of the actual value. Bounds on a {@code Property<...>} field must therefore be
+     * enforced here, once the rendered value is known.
+     */
+    public static int requireInRange(String fieldName, int value, int min, int max) {
+        if (value < min || value > max) {
+            throw new IllegalArgumentException(fieldName + " must be between " + min + " and " + max + ", got " + value);
+        }
+        return value;
+    }
+
+    public static long requireInRange(String fieldName, long value, long min, long max) {
+        if (value < min || value > max) {
+            throw new IllegalArgumentException(fieldName + " must be between " + min + " and " + max + ", got " + value);
+        }
+        return value;
     }
 
     @SuppressWarnings("unchecked")

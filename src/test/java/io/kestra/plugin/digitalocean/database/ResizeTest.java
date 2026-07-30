@@ -53,4 +53,21 @@ class ResizeTest extends AbstractDigitalOceanTest {
         var ex = assertThrows(HttpClientResponseException.class, () -> task.run(runContext));
         assertThat(ex.getMessage(), containsString("rate limit"));
     }
+
+    @Test
+    void failsWithClearMessageWhenNumNodesExceedsMaximum(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        var task = Resize.builder()
+            .id("resize-too-many-nodes-test")
+            .type(Resize.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .databaseId(Property.ofValue("db-1"))
+            .size(Property.ofValue("db-s-2vcpu-4gb"))
+            .numNodes(Property.ofValue(4))
+            .build();
+
+        var runContext = runContext();
+        var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
+        assertThat(ex.getMessage(), containsString("numNodes must be between 1 and 3"));
+    }
 }

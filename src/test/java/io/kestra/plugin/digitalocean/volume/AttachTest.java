@@ -57,4 +57,21 @@ class AttachTest extends AbstractDigitalOceanTest {
         var ex = assertThrows(HttpClientResponseException.class, () -> task.run(runContext));
         assertThat(ex.getMessage(), containsString("rate limit"));
     }
+
+    @Test
+    void failsWithClearMessageOnNonNumericDropletId(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        var task = Attach.builder()
+            .id("attach-bad-droplet-id-test")
+            .type(Attach.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .volumeId(Property.ofValue("vol-1"))
+            .dropletId(Property.ofValue("not-a-number"))
+            .build();
+
+        var runContext = runContext();
+        var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
+        assertThat(ex.getMessage(), containsString("dropletId must be a numeric DigitalOcean droplet id"));
+        assertThat(ex.getMessage(), containsString("not-a-number"));
+    }
 }

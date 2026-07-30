@@ -64,7 +64,7 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
         logger.info("Deleting DigitalOcean database cluster {}", rDatabaseId);
 
-        var url = join(rBaseUrl, "v2/databases/" + rDatabaseId);
+        var url = join(rBaseUrl, "v2/databases/" + encodePathSegment(rDatabaseId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("DELETE");
         request(runContext, options, rApiToken, requestBuilder, String.class);
 

@@ -113,7 +113,7 @@ public class Update extends AbstractDigitalOceanTask implements RunnableTask<Loa
 
         logger.info("Updating DigitalOcean load balancer {}", rLoadBalancerId);
 
-        var url = join(rBaseUrl, "v2/load_balancers/" + rLoadBalancerId);
+        var url = join(rBaseUrl, "v2/load_balancers/" + encodePathSegment(rLoadBalancerId));
         var requestBuilder = HttpRequest.builder()
             .uri(URI.create(url))
             .method("PUT")

@@ -9,8 +9,6 @@ import io.kestra.core.models.tasks.common.FetchType;
 import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -51,8 +49,6 @@ public class List extends AbstractDigitalOceanTask implements RunnableTask<Abstr
 
     @Schema(title = "Page size", description = "Number of droplets requested per page. Defaults to 200, the maximum allowed by the DigitalOcean API.")
     @Builder.Default
-    @Min(1)
-    @Max(200)
     @PluginProperty(group = "processing")
     private Property<Integer> perPage = Property.ofValue(200);
 
@@ -68,7 +64,7 @@ public class List extends AbstractDigitalOceanTask implements RunnableTask<Abstr
     @Override
     public PageOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rPerPage = runContext.render(perPage).as(Integer.class).orElse(200);
+        var rPerPage = requireInRange("perPage", runContext.render(perPage).as(Integer.class).orElse(200), 1, 200);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

@@ -64,7 +64,7 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
 
         logger.info("Deleting DigitalOcean firewall {}", rFirewallId);
 
-        var url = join(rBaseUrl, "v2/firewalls/" + rFirewallId);
+        var url = join(rBaseUrl, "v2/firewalls/" + encodePathSegment(rFirewallId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("DELETE");
         request(runContext, options, rApiToken, requestBuilder, String.class);
 

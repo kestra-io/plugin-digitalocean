@@ -66,7 +66,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Volume
 
         logger.info("Fetching DigitalOcean volume {}", rVolumeId);
 
-        var url = join(rBaseUrl, "v2/volumes/" + rVolumeId);
+        var url = join(rBaseUrl, "v2/volumes/" + encodePathSegment(rVolumeId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 

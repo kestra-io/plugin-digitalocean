@@ -66,7 +66,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Cluste
 
         logger.info("Fetching DigitalOcean Kubernetes cluster {}", rClusterId);
 
-        var url = join(rBaseUrl, "v2/kubernetes/clusters/" + rClusterId);
+        var url = join(rBaseUrl, "v2/kubernetes/clusters/" + encodePathSegment(rClusterId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 

@@ -42,6 +42,27 @@ class GetTest extends AbstractDigitalOceanTest {
     }
 
     @Test
+    void encodesSpecialCharactersInPathSegments(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        // "abc/def" is a classic path-injection attempt: unencoded, it would insert an extra path
+        // segment ("/v2/domains/my domain.com/records/abc/def") instead of being treated as one id.
+        stubGetJson("/v2/domains/my%20domain.com/records/abc%2Fdef", RECORD_JSON);
+
+        var task = Get.builder()
+            .id("get-encoding-test")
+            .type(Get.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .domain(Property.ofValue("my domain.com"))
+            .recordId(Property.ofValue("abc/def"))
+            .build();
+
+        var output = task.run(runContext());
+
+        assertThat(output.getId(), is(12345L));
+        verifyBearer(getRequestedFor(urlPathEqualTo("/v2/domains/my%20domain.com/records/abc%2Fdef")), "test-token");
+    }
+
+    @Test
     void failsWithClearMessageWhenNotFound(WireMockRuntimeInfo wireMockRuntimeInfo) {
         stubStatus("/v2/domains/example.com/records/999", 404, "{\"message\":\"not found\"}");
 

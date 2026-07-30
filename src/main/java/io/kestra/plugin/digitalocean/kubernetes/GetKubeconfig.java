@@ -69,7 +69,7 @@ public class GetKubeconfig extends AbstractDigitalOceanTask implements RunnableT
 
         logger.info("Fetching kubeconfig for DigitalOcean Kubernetes cluster {}", rClusterId);
 
-        var url = join(rBaseUrl, "v2/kubernetes/clusters/" + rClusterId + "/kubeconfig");
+        var url = join(rBaseUrl, "v2/kubernetes/clusters/" + encodePathSegment(rClusterId) + "/kubeconfig");
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var content = request(runContext, options, rApiToken, requestBuilder, String.class).getBody();
 

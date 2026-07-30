@@ -66,7 +66,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<LoadBa
 
         logger.info("Fetching DigitalOcean load balancer {}", rLoadBalancerId);
 
-        var url = join(rBaseUrl, "v2/load_balancers/" + rLoadBalancerId);
+        var url = join(rBaseUrl, "v2/load_balancers/" + encodePathSegment(rLoadBalancerId));
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
         var body = requestJson(runContext, options, rApiToken, requestBuilder);
 

@@ -108,7 +108,7 @@ public class Resize extends AbstractDigitalOceanTask implements RunnableTask<Abs
 
         logger.info("Running DigitalOcean droplet action {} on droplet {}", rAction, rDropletId);
 
-        var url = join(rBaseUrl, "v2/droplets/" + rDropletId + "/actions");
+        var url = join(rBaseUrl, "v2/droplets/" + encodePathSegment(rDropletId) + "/actions");
         var requestBuilder = HttpRequest.builder()
             .uri(URI.create(url))
             .method("POST")

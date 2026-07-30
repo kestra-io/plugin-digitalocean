@@ -112,7 +112,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dom
 
         logger.info("Creating DigitalOcean DNS record {} {} for domain {}", rType, rName, rDomain);
 
-        var url = join(rBaseUrl, "v2/domains/" + rDomain + "/records");
+        var url = join(rBaseUrl, "v2/domains/" + encodePathSegment(rDomain) + "/records");
         var requestBuilder = HttpRequest.builder()
             .uri(URI.create(url))
             .method("POST")
