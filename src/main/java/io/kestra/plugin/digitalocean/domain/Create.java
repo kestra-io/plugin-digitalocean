@@ -49,7 +49,7 @@ import java.util.LinkedHashMap;
                     type: io.kestra.plugin.digitalocean.domain.record.Create
                     apiToken: "{{ secret('DIGITALOCEAN_TOKEN') }}"
                     domain: "example.com"
-                    recordType: "A"
+                    recordType: A
                     name: "www"
                     data: "104.131.186.241"
                 """

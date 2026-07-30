@@ -46,7 +46,8 @@ pagination automatically and reporting the API's `total` count regardless of `fe
 - **`domain.record`**: `List`, `Get`, `Create`, and `Delete` for DNS records within a zone
   (`/v2/domains/{domain}/records`). `domain` (the zone name, e.g. example.com) is a required property on
   every task in this package. A zone must already exist (via `domain.Create`) before records can be added
-  to it.
+  to it. `Create`'s `recordType` is the `RecordType` enum (A, AAAA, CAA, CNAME, MX, NS, SRV, TXT); SOA is
+  excluded because DigitalOcean manages a zone's SOA record automatically and does not allow creating one.
 - **`firewall`**: `List`, `Get`, `Create`, and `Delete`.
 
 Nested inputs that are inherently a list of objects (Kubernetes node pools, load balancer forwarding
@@ -69,7 +70,7 @@ tasks:
     type: io.kestra.plugin.digitalocean.domain.record.Create
     apiToken: "{{ secret('DIGITALOCEAN_TOKEN') }}"
     domain: "example.com"
-    recordType: "A"
+    recordType: A
     name: "www"
     data: "104.131.186.241"
 ```

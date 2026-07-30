@@ -85,7 +85,8 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Loa
         var logger = runContext.logger();
         var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
         var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
-        var rForwardingRules = runContext.render(forwardingRules).asList(Map.class);
+        @SuppressWarnings("unchecked")
+        var rForwardingRules = (List<Map<String, Object>>) runContext.render(forwardingRules).asList(Map.class);
         if (rForwardingRules.isEmpty()) {
             throw new IllegalArgumentException("forwardingRules must contain at least one forwarding rule");
         }

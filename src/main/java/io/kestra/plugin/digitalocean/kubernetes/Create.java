@@ -86,7 +86,8 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Clu
         var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
         var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
         var rVersion = runContext.render(kubernetesVersion).as(String.class).orElseThrow(() -> new IllegalArgumentException("kubernetesVersion is required"));
-        var rNodePools = runContext.render(nodePools).asList(Map.class);
+        @SuppressWarnings("unchecked")
+        var rNodePools = (List<Map<String, Object>>) runContext.render(nodePools).asList(Map.class);
         if (rNodePools.isEmpty()) {
             throw new IllegalArgumentException("nodePools must contain at least one node pool");
         }

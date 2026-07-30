@@ -97,8 +97,10 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Fir
     public FirewallOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
         var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rInboundRules = runContext.render(inboundRules).asList(Map.class);
-        var rOutboundRules = runContext.render(outboundRules).asList(Map.class);
+        @SuppressWarnings("unchecked")
+        var rInboundRules = (List<Map<String, Object>>) runContext.render(inboundRules).asList(Map.class);
+        @SuppressWarnings("unchecked")
+        var rOutboundRules = (List<Map<String, Object>>) runContext.render(outboundRules).asList(Map.class);
         var rDropletIds = runContext.render(dropletIds).asList(Long.class);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);

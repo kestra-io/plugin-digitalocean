@@ -43,7 +43,7 @@ import java.util.LinkedHashMap;
                     type: io.kestra.plugin.digitalocean.domain.record.Create
                     apiToken: "{{ secret('DIGITALOCEAN_TOKEN') }}"
                     domain: "example.com"
-                    recordType: "A"
+                    recordType: A
                     name: "www"
                     data: "104.131.186.241"
                     ttl: 3600
@@ -58,10 +58,10 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dom
     @PluginProperty(group = "main")
     private Property<String> domain;
 
-    @Schema(title = "Record type", description = "One of A, AAAA, CNAME, MX, TXT, SRV, NS, or CAA.")
+    @Schema(title = "Record type", description = "One of A, AAAA, CAA, CNAME, MX, NS, SRV, or TXT.")
     @NotNull
     @PluginProperty(group = "main")
-    private Property<String> recordType;
+    private Property<RecordType> recordType;
 
     @Schema(title = "Record name", description = "Host name, alias, or service being defined by the record, relative to the domain, e.g. www.")
     @NotNull
@@ -94,7 +94,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dom
     public DomainRecordOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
         var rDomain = runContext.render(domain).as(String.class).orElseThrow(() -> new IllegalArgumentException("domain is required"));
-        var rType = runContext.render(recordType).as(String.class).orElseThrow(() -> new IllegalArgumentException("recordType is required"));
+        var rType = runContext.render(recordType).as(RecordType.class).orElseThrow(() -> new IllegalArgumentException("recordType is required"));
         var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
         var rData = runContext.render(data).as(String.class).orElseThrow(() -> new IllegalArgumentException("data is required"));
         var rTtl = runContext.render(ttl).as(Integer.class).orElse(1800);
@@ -102,7 +102,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dom
         var rBaseUrl = renderBaseUrl(runContext);
 
         var payload = new LinkedHashMap<String, Object>();
-        payload.put("type", rType);
+        payload.put("type", rType.name());
         payload.put("name", rName);
         payload.put("data", rData);
         payload.put("ttl", rTtl);
