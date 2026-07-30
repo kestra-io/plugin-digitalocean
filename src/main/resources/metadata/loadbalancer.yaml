@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.loadbalancer
+name: "digitalocean-loadbalancer"
+title: "DigitalOcean Load Balancer"
+description: "Tasks for managing DigitalOcean load balancers."
+body: "List, read, create, update, and delete load balancers, including their forwarding rules and attached droplets."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

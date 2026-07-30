@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.domain
+name: "digitalocean-domain"
+title: "DigitalOcean Domain"
+description: "Tasks for managing DNS records of a DigitalOcean domain."
+body: "List, read, create, and delete DNS records for a domain already managed by DigitalOcean."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

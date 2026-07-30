@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.volume
+name: "digitalocean-volume"
+title: "DigitalOcean Volume"
+description: "Tasks for managing DigitalOcean block storage volumes."
+body: "List, read, create, and delete volumes, and attach or detach a volume from a droplet."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

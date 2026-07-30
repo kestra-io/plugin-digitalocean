@@ -39,14 +39,14 @@
 
 ## Why
 
-- What user problem does this solve? Teams need a concrete starting point for building and validating new Kestra plugins without recreating the same project scaffolding from scratch.
-- Why would a team adopt this plugin in a workflow? It gives plugin authors a ready-made reference repo they can adapt alongside their own build, test, and publishing workflow.
-- What operational/business outcome does it enable? It shortens plugin delivery time, reduces setup mistakes, and makes internal or partner plugin development more repeatable.
+- What user problem does this solve? Teams running infrastructure on DigitalOcean need to provision, inspect, resize, and tear down cloud resources as part of a Kestra flow, without hand-rolling HTTP calls against the DigitalOcean API.
+- Why would a team adopt this plugin in a workflow? It gives infrastructure and platform teams typed tasks for the DigitalOcean API v2, with pagination, error handling, and fetch semantics already solved.
+- What operational/business outcome does it enable? Automated droplet lifecycle management, Kubernetes cluster provisioning, database scaling, and DNS/firewall changes driven by Kestra flows instead of manual `doctl`/API scripting.
 
 ## What
 
-- Provides plugin components under `io.kestra.plugin.digitalocean`.
-- Includes classes such as `Example`, `Trigger`.
+- Provides plugin components under `io.kestra.plugin.digitalocean`, covering droplets, Kubernetes clusters, managed databases, load balancers, block storage volumes, DNS records, and cloud firewalls.
+- Includes a polling trigger, `droplet.Trigger`, that fires when a new droplet appears on the account.
 
 ## Documentation
 * Full documentation can be found under: [kestra.io/docs](https://kestra.io/docs)
