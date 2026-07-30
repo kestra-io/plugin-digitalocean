@@ -156,14 +156,26 @@ public abstract class AbstractDigitalOceanTask extends Task {
     private static HttpClientResponseException rewriteError(Logger logger, HttpClientResponseException e) {
         var response = e.getResponse();
         var status = response != null && response.getStatus() != null ? response.getStatus().getCode() : -1;
+        var doError = extractDoError(response);
+        var doMessage = doError != null ? doError.message() : null;
 
-        logger.debug("DigitalOcean API call failed with HTTP {}: {}", status, e.getMessage());
+        logger.debug("DigitalOcean API call failed with HTTP {} (id={}): {}", status, doError != null ? doError.id() : null, e.getMessage());
 
-        if (status == 401 || status == 403) {
+        if (status == 401) {
             return new HttpClientResponseException(
-                "DigitalOcean API returned HTTP " + status + ": invalid or missing API token. Create a personal " +
+                "DigitalOcean API returned HTTP 401: invalid or missing API token. Create a personal " +
                     "access token (prefixed dop_v1_) in the DigitalOcean control panel under API > Tokens and " +
-                    "set it as apiToken.",
+                    "set it as apiToken" + (doMessage != null ? ": " + doMessage : "."),
+                response, e
+            );
+        }
+
+        if (status == 403) {
+            return new HttpClientResponseException(
+                "DigitalOcean API returned HTTP 403 (forbidden): " + (doMessage != null ? doMessage + ". " : "") +
+                    "This usually means the token lacks the required scope for this action, or the resource is " +
+                    "busy or in a state that does not allow it (for example a load balancer still processing a " +
+                    "previous action). Verify the token scopes and the resource state, then retry.",
                 response, e
             );
         }
@@ -171,7 +183,7 @@ public abstract class AbstractDigitalOceanTask extends Task {
         if (status == 404) {
             return new HttpClientResponseException(
                 "DigitalOcean API returned HTTP 404: resource not found. Verify baseUrl (e.g. " + DEFAULT_BASE_URL +
-                    ") and the id used in the request are correct.",
+                    ") and the id used in the request are correct." + (doMessage != null ? " " + doMessage : ""),
                 response, e
             );
         }
@@ -183,15 +195,40 @@ public abstract class AbstractDigitalOceanTask extends Task {
 
             return new HttpClientResponseException(
                 "DigitalOcean API rate limit hit (HTTP 429)." +
-                    (retryAfter != null ? " Retry after " + retryAfter + " second(s)." : " Honor the retry-after response header before retrying."),
+                    (retryAfter != null ? " Retry after " + retryAfter + " second(s)." : " Honor the retry-after response header before retrying.") +
+                    (doMessage != null ? " " + doMessage : ""),
                 response, e
             );
         }
 
         return new HttpClientResponseException(
-            "DigitalOcean API request failed with HTTP " + status + ": " + e.getMessage(),
+            "DigitalOcean API request failed with HTTP " + status + ": " + (doMessage != null ? doMessage : e.getMessage()),
             response, e
         );
+    }
+
+    /** DigitalOcean's error body, e.g. {"id":"forbidden","message":"..."}. Both fields are optional and informational. */
+    private record DoError(String id, String message) {
+    }
+
+    /**
+     * Extracts DigitalOcean's error body id/message so {@link #rewriteError} can surface the real reason
+     * for a failure (a load balancer busy processing a previous action, a token missing a scope, ...)
+     * instead of assuming every 401/403 means a bad token. Never throws: a non-JSON or malformed body
+     * (or none at all) just means no extra detail is available.
+     */
+    private static DoError extractDoError(HttpResponse<?> response) {
+        if (response == null || !(response.getBody() instanceof byte[] bytes) || bytes.length == 0) {
+            return null;
+        }
+        try {
+            var node = MAPPER.readTree(bytes);
+            var id = node.hasNonNull("id") ? node.get("id").asText() : null;
+            var message = node.hasNonNull("message") ? node.get("message").asText() : null;
+            return id != null || message != null ? new DoError(id, message) : null;
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     /**
