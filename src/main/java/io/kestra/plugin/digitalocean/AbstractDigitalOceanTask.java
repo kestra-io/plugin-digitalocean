@@ -98,7 +98,8 @@ public abstract class AbstractDigitalOceanTask extends Task {
 
     /**
      * Shared HTTP call logic: attaches the bearer token, executes the request, and on a non-2xx response
-     * rewrites the failure into a clear, actionable message (never a raw stack trace).
+     * rewrites the failure into a clear, actionable message (never a raw stack trace). Defaults to
+     * {@code Accept: application/json}, the shape every endpoint but the kubeconfig download returns.
      */
     public static <RES> HttpResponse<RES> request(
         RunContext runContext,
@@ -107,9 +108,25 @@ public abstract class AbstractDigitalOceanTask extends Task {
         HttpRequest.HttpRequestBuilder requestBuilder,
         Class<RES> responseType
     ) throws Exception {
+        return request(runContext, options, apiToken, requestBuilder, responseType, "application/json");
+    }
+
+    /**
+     * Same as {@link #request(RunContext, HttpConfiguration, String, HttpRequest.HttpRequestBuilder, Class)}
+     * but with an explicit Accept header, for the rare endpoint (the DOKS kubeconfig download) that does
+     * not return JSON.
+     */
+    public static <RES> HttpResponse<RES> request(
+        RunContext runContext,
+        HttpConfiguration options,
+        String apiToken,
+        HttpRequest.HttpRequestBuilder requestBuilder,
+        Class<RES> responseType,
+        String acceptHeader
+    ) throws Exception {
         var request = requestBuilder
             .addHeader("Content-Type", "application/json")
-            .addHeader("Accept", "application/json")
+            .addHeader("Accept", acceptHeader)
             .addHeader("Authorization", "Bearer " + apiToken)
             .build();
 
@@ -305,6 +322,9 @@ public abstract class AbstractDigitalOceanTask extends Task {
         return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
     }
 
+    /** Generous ceiling on the number of pages a single fetchAllPages call will follow, see {@link #fetchAllPages}. */
+    private static final int MAX_PAGES = 10_000;
+
     /**
      * Page-based pagination following DigitalOcean's `links.pages.next` URL, collecting the named array
      * (e.g. "droplets") across pages, and reading the grand total from `meta.total`.
@@ -318,11 +338,39 @@ public abstract class AbstractDigitalOceanTask extends Task {
         int perPage,
         String arrayKey
     ) throws Exception {
+        return fetchAllPages(runContext, options, apiToken, baseUrl, path, perPage, arrayKey, MAX_PAGES);
+    }
+
+    /**
+     * Package-visible overload taking an explicit page ceiling, so a test can exercise the cyclic-next
+     * guard with a small, fast, deterministic value instead of the real {@link #MAX_PAGES}.
+     */
+    static FetchAllResult fetchAllPages(
+        RunContext runContext,
+        HttpConfiguration options,
+        String apiToken,
+        String baseUrl,
+        String path,
+        int perPage,
+        String arrayKey,
+        int maxPages
+    ) throws Exception {
         var items = new ArrayList<Map<String, Object>>();
         long total = 0;
         String url = join(baseUrl, path) + (path.contains("?") ? "&" : "?") + "per_page=" + perPage;
+        var pageCount = 0;
 
         while (url != null) {
+            pageCount++;
+            if (pageCount > maxPages) {
+                throw new IllegalStateException(
+                    "DigitalOcean API pagination for \"" + path + "\" exceeded " + maxPages + " pages without " +
+                        "reaching the end of links.pages.next. This looks like a cyclic or self-referential " +
+                        "next link rather than a legitimate result set, so pagination was aborted instead of " +
+                        "looping forever."
+                );
+            }
+
             var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
             var body = requestJson(runContext, options, apiToken, requestBuilder);
 

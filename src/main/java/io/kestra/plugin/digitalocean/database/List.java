@@ -16,6 +16,9 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @SuperBuilder
 @ToString
 @EqualsAndHashCode
@@ -23,7 +26,11 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @Schema(
     title = "List DigitalOcean database clusters",
-    description = "Lists managed database clusters on the account, following DigitalOcean's page-based pagination automatically."
+    description = "Lists managed database clusters on the account, following DigitalOcean's page-based " +
+        "pagination automatically. Each row has its connection, private_connection, and users fields " +
+        "stripped before being returned: DigitalOcean's list endpoint embeds credentials (a connection " +
+        "user/password, a uri with the password inlined, and a users array of passwords) in every item, " +
+        "and this task never surfaces them in outputs or internal storage."
 )
 @Plugin(
     examples = {
@@ -74,6 +81,20 @@ public class List extends AbstractDigitalOceanTask implements RunnableTask<Abstr
 
         logger.info("Found {} database cluster(s)", result.total());
 
-        return toPageOutput(runContext, fetchType, result.items(), result.total());
+        var rows = result.items().stream().map(List::sanitize).toList();
+        return toPageOutput(runContext, fetchType, rows, result.total());
+    }
+
+    /**
+     * Strips the credential-bearing fields DigitalOcean embeds in every database list item: connection
+     * and private_connection each carry a user/password and a uri with the password inlined, and users
+     * carries a password per database user. Dropping only "password" would still leak it through uri.
+     */
+    private static Map<String, Object> sanitize(Map<String, Object> database) {
+        var sanitized = new LinkedHashMap<>(database);
+        sanitized.remove("connection");
+        sanitized.remove("private_connection");
+        sanitized.remove("users");
+        return sanitized;
     }
 }

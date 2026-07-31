@@ -10,10 +10,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -45,6 +47,8 @@ class GetKubeconfigTest extends AbstractDigitalOceanTest {
             assertThat(content, containsString("kind: Config"));
         }
         verifyBearer(getRequestedFor(urlPathEqualTo("/v2/kubernetes/clusters/cluster-1/kubeconfig")), "test-token");
+        verify(getRequestedFor(urlPathEqualTo("/v2/kubernetes/clusters/cluster-1/kubeconfig"))
+            .withHeader("Accept", containing("yaml")));
     }
 
     @Test

@@ -71,7 +71,7 @@ public class GetKubeconfig extends AbstractDigitalOceanTask implements RunnableT
 
         var url = join(rBaseUrl, "v2/kubernetes/clusters/" + encodePathSegment(rClusterId) + "/kubeconfig");
         var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
-        var content = request(runContext, options, rApiToken, requestBuilder, String.class).getBody();
+        var content = request(runContext, options, rApiToken, requestBuilder, String.class, "application/yaml, text/yaml, */*;q=0.1").getBody();
 
         var tempFile = runContext.workingDir().createTempFile(".yaml").toFile();
         Files.writeString(tempFile.toPath(), content != null ? content : "", StandardCharsets.UTF_8);

@@ -3,6 +3,7 @@ package io.kestra.plugin.digitalocean.database;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import io.kestra.core.http.client.HttpClientResponseException;
 import io.kestra.core.models.property.Property;
+import io.kestra.core.serializers.JacksonMapper;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTest;
 import org.junit.jupiter.api.Test;
 
@@ -12,6 +13,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ListTest extends AbstractDigitalOceanTest {
@@ -98,6 +100,45 @@ class ListTest extends AbstractDigitalOceanTest {
         assertThat(output.getTotal(), is(2L));
         assertThat(output.getSize(), is(2));
         assertThat(output.getRows(), hasSize(2));
+    }
+
+    @Test
+    void neverLeaksCredentialsFromDatabaseListRows(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        var secretPassword = "s3cr3t-db-password-do-not-leak";
+        stubGetJson("/v2/databases", """
+            {
+              "databases": [
+                {"id": "db-1", "name": "prod-pg", "engine": "pg", "region": "nyc1", "status": "online",
+                 "num_nodes": 1, "size": "db-s-1vcpu-1gb", "created_at": "2024-01-01T00:00:00Z", "tags": ["prod"],
+                 "connection": {"host": "db-1.db.ondigitalocean.com", "port": 25060, "user": "doadmin",
+                   "password": "%s", "uri": "postgresql://doadmin:%s@db-1.db.ondigitalocean.com:25060/defaultdb"},
+                 "private_connection": {"host": "private-db-1.db.ondigitalocean.com", "port": 25060,
+                   "user": "doadmin", "password": "%s"},
+                 "users": [{"name": "doadmin", "role": "primary", "password": "%s"}]}
+              ],
+              "links": {"pages": {}},
+              "meta": {"total": 1}
+            }
+            """.formatted(secretPassword, secretPassword, secretPassword, secretPassword));
+
+        var task = List.builder()
+            .id("list-credential-leak-test")
+            .type(List.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .build();
+
+        var output = task.run(runContext());
+
+        var row = output.getRows().getFirst();
+        assertThat(row.containsKey("connection"), is(false));
+        assertThat(row.containsKey("private_connection"), is(false));
+        assertThat(row.containsKey("users"), is(false));
+        assertThat(row.get("name"), is("prod-pg"));
+
+        var serializedRows = JacksonMapper.ofJson().writeValueAsString(output.getRows());
+        assertThat(serializedRows, not(containsString(secretPassword)));
+        assertThat(serializedRows, not(containsString("password")));
     }
 
     @Test

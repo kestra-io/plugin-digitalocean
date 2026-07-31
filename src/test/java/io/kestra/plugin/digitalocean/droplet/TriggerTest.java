@@ -165,6 +165,49 @@ class TriggerTest extends AbstractDigitalOceanTest {
 
         var refreshed = kv.getValue(key);
         assertThat("baseline must be re-established with the current droplet ids", refreshed.isPresent(), is(true));
-        assertThat(refreshed.get().value(), is("1"));
+        assertThat(refreshed.get().value(), is("1:0"));
+    }
+
+    @Test
+    void doesNotRefireOnATransientlyMissingDroplet(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        triggerId = buildTriggerId();
+        stubFor(get(urlPathEqualTo("/v2/droplets"))
+            .inScenario("transient-gap")
+            .whenScenarioStateIs(Scenario.STARTED)
+            .willReturn(okJson("""
+                {"droplets": [
+                    {"id": 1, "name": "existing-1", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"},
+                    {"id": 2, "name": "existing-2", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"}
+                ], "links": {"pages": {}}, "meta": {"total": 2}}
+                """))
+            .willSetStateTo("baseline-set"));
+        // Droplet 2 is transiently missing from this single poll (e.g. eventual consistency), not deleted.
+        stubFor(get(urlPathEqualTo("/v2/droplets"))
+            .inScenario("transient-gap")
+            .whenScenarioStateIs("baseline-set")
+            .willReturn(okJson("""
+                {"droplets": [{"id": 1, "name": "existing-1", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"}], "links": {"pages": {}}, "meta": {"total": 1}}
+                """))
+            .willSetStateTo("gap-seen"));
+        stubFor(get(urlPathEqualTo("/v2/droplets"))
+            .inScenario("transient-gap")
+            .whenScenarioStateIs("gap-seen")
+            .willReturn(okJson("""
+                {"droplets": [
+                    {"id": 1, "name": "existing-1", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"},
+                    {"id": 2, "name": "existing-2", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"}
+                ], "links": {"pages": {}}, "meta": {"total": 2}}
+                """)));
+
+        var trigger = buildTrigger(wireMockRuntimeInfo.getHttpBaseUrl());
+        var trigCtx = triggerContext("test-flow");
+        var condCtx = conditionContext(trigger, trigCtx, "test-flow");
+
+        trigger.evaluate(condCtx, trigCtx);
+        var duringGap = trigger.evaluate(condCtx, trigCtx);
+        var afterGap = trigger.evaluate(condCtx, trigCtx);
+
+        assertThat("a transient single-poll gap must not fire", duringGap.isEmpty(), is(true));
+        assertThat("droplet 2 reappearing must not be treated as new and must not fire", afterGap.isEmpty(), is(true));
     }
 }

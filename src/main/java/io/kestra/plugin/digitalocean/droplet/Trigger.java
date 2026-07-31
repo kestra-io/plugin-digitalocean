@@ -31,11 +31,12 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.kestra.plugin.digitalocean.AbstractDigitalOceanTask.asLong;
 import static io.kestra.plugin.digitalocean.AbstractDigitalOceanTask.asMap;
@@ -53,6 +54,13 @@ import static io.kestra.plugin.digitalocean.AbstractDigitalOceanTask.asString;
         The first evaluation only establishes the baseline of existing droplet ids and does not fire. \
         Only one new droplet is reported per poll; if several droplets appear between polls, the rest are \
         reported on the following polls.
+
+        This trigger is at-least-once: a droplet id missing from a single poll (a transient gap from \
+        DigitalOcean's eventual consistency, or a short page) is tolerated for up to 3 consecutive polls \
+        before it is dropped from the watermark, so it does not re-fire once the listing catches up. The \
+        watermark is stored under a Kestra namespace KV key prefixed `digitalocean_droplet_trigger_`; do \
+        not delete it manually, as doing so re-establishes the baseline and skips whatever is already on \
+        the account at that point.
         """
 )
 @Plugin(
@@ -143,33 +151,29 @@ public class Trigger extends AbstractTrigger implements PollingTriggerInterface,
         var ttl = interval.multipliedBy(10);
         var key = kvKey(context.getFlowId(), context.getTriggerId());
 
-        var previous = getSeenIdsValue(kv, key, logger);
+        var previous = getWatermarkValue(kv, key, logger);
         if (previous.isEmpty()) {
             logger.info("Establishing droplet baseline: {} existing droplet(s)", currentIds.size());
-            persistSeenIds(kv, key, currentIds, ttl);
+            persistWatermark(kv, key, freshWatermark(currentIds), ttl);
             return Optional.empty();
         }
 
-        var previousIds = parseSeenIds(previous.get().value());
-        var seen = new LinkedHashSet<>(previousIds);
-        seen.retainAll(currentIds);
+        var watermark = parseWatermark(previous.get().value());
 
         Map<String, Object> newDroplet = null;
         for (var droplet : currentDroplets) {
             var id = asString(droplet.get("id"));
-            if (!previousIds.contains(id)) {
+            if (!watermark.containsKey(id)) {
                 newDroplet = droplet;
                 break;
             }
         }
 
+        persistWatermark(kv, key, advanceWatermark(watermark, currentIds), ttl);
+
         if (newDroplet == null) {
-            persistSeenIds(kv, key, seen, ttl);
             return Optional.empty();
         }
-
-        seen.add(asString(newDroplet.get("id")));
-        persistSeenIds(kv, key, seen, ttl);
 
         var region = asMap(newDroplet.get("region"));
         var createdAt = asString(newDroplet.get("created_at"));
@@ -195,12 +199,15 @@ public class Trigger extends AbstractTrigger implements PollingTriggerInterface,
         return "digitalocean_droplet_trigger_" + flowId.length() + "_" + flowId + "_" + triggerId.length() + "_" + triggerId;
     }
 
+    /** An id is forgotten only once it has been absent from the listing for this many consecutive polls. */
+    private static final int MAX_CONSECUTIVE_MISSES = 3;
+
     /**
      * A KV entry whose TTL has lapsed surfaces as {@link ResourceExpiredException} rather than an empty
      * {@link Optional}. Treat it the same as "no baseline yet" instead of letting it fail the whole
      * evaluation, so the trigger simply re-establishes a fresh baseline on the next poll.
      */
-    private static Optional<KVValue> getSeenIdsValue(KVStore kv, String key, Logger logger) throws IOException {
+    private static Optional<KVValue> getWatermarkValue(KVStore kv, String key, Logger logger) throws IOException {
         try {
             return kv.getValue(key);
         } catch (ResourceExpiredException e) {
@@ -209,15 +216,63 @@ public class Trigger extends AbstractTrigger implements PollingTriggerInterface,
         }
     }
 
-    private static Set<String> parseSeenIds(Object raw) {
-        if (!(raw instanceof String str) || str.isBlank()) {
-            return new LinkedHashSet<>();
+    private static Map<String, Integer> freshWatermark(Set<String> ids) {
+        var watermark = new LinkedHashMap<String, Integer>();
+        for (var id : ids) {
+            watermark.put(id, 0);
         }
-        return new LinkedHashSet<>(Arrays.asList(str.split(",")));
+        return watermark;
     }
 
-    private static void persistSeenIds(KVStore kv, String key, Set<String> ids, Duration ttl) throws Exception {
-        kv.put(key, new KVValueAndMetadata(new KVMetadata(null, ttl), String.join(",", ids)));
+    /**
+     * Advances the watermark for the next poll: every id present in this poll's listing (including a
+     * newly-seen one) resets to 0 consecutive misses. An id missing from this poll keeps its entry with
+     * an incremented miss count, unless it has now reached {@link #MAX_CONSECUTIVE_MISSES} in a row, in
+     * which case it is dropped. This tolerates a transient gap in DigitalOcean's droplet listing (eventual
+     * consistency, a short page) without re-firing on an id that never actually disappeared.
+     */
+    private static Map<String, Integer> advanceWatermark(Map<String, Integer> watermark, Set<String> currentIds) {
+        var updated = new LinkedHashMap<String, Integer>();
+        for (var id : currentIds) {
+            updated.put(id, 0);
+        }
+        for (var entry : watermark.entrySet()) {
+            if (currentIds.contains(entry.getKey())) {
+                continue;
+            }
+            var misses = entry.getValue() + 1;
+            if (misses < MAX_CONSECUTIVE_MISSES) {
+                updated.put(entry.getKey(), misses);
+            }
+        }
+        return updated;
+    }
+
+    /** Persisted as compact "id:misses,id:misses,..." pairs, e.g. "3164444:0,3164445:2". */
+    private static Map<String, Integer> parseWatermark(Object raw) {
+        var watermark = new LinkedHashMap<String, Integer>();
+        if (!(raw instanceof String str) || str.isBlank()) {
+            return watermark;
+        }
+        for (var entry : str.split(",")) {
+            var parts = entry.split(":", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            try {
+                watermark.put(parts[0], Integer.parseInt(parts[1]));
+            } catch (NumberFormatException e) {
+                // Malformed entry (e.g. leftover from an older watermark format): skip it rather than fail evaluation.
+            }
+        }
+        return watermark;
+    }
+
+    private static void persistWatermark(KVStore kv, String key, Map<String, Integer> watermark, Duration ttl) throws Exception {
+        var value = watermark.entrySet().stream()
+            .map(entry -> entry.getKey() + ":" + entry.getValue())
+            .collect(Collectors.joining(","));
+        kv.put(key, new KVValueAndMetadata(new KVMetadata(null, ttl), value));
     }
 
     @Builder

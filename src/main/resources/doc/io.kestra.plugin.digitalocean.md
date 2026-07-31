@@ -82,3 +82,9 @@ tasks:
   droplet ids and never fires. Only one new droplet is reported per poll; if several droplets appear
   between polls, the rest are reported on the following polls. Outputs: `id`, `name`, `region`, `status`,
   `createdAt`.
+
+  This trigger is at-least-once: a droplet id missing from a single poll (a transient gap from
+  DigitalOcean's eventual consistency, or a short page) is tolerated for up to 3 consecutive polls before
+  it is dropped from the watermark, so a reappearing droplet does not re-fire. The watermark is stored
+  under a Kestra namespace KV key prefixed `digitalocean_droplet_trigger_`; do not delete it manually,
+  since doing so re-establishes the baseline and skips whatever is already on the account at that point.
