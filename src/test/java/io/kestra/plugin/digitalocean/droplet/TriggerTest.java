@@ -210,4 +210,68 @@ class TriggerTest extends AbstractDigitalOceanTest {
         assertThat("a transient single-poll gap must not fire", duringGap.isEmpty(), is(true));
         assertThat("droplet 2 reappearing must not be treated as new and must not fire", afterGap.isEmpty(), is(true));
     }
+
+    @Test
+    void reportsEveryDropletThatAppearedBetweenPolls(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        triggerId = buildTriggerId();
+        stubFor(get(urlPathEqualTo("/v2/droplets"))
+            .inScenario("multi")
+            .whenScenarioStateIs(Scenario.STARTED)
+            .willReturn(okJson("""
+                {"droplets": [{"id": 1, "name": "existing", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"}], "links": {"pages": {}}, "meta": {"total": 1}}
+                """))
+            .willSetStateTo("baseline-set"));
+        stubFor(get(urlPathEqualTo("/v2/droplets"))
+            .inScenario("multi")
+            .whenScenarioStateIs("baseline-set")
+            .willReturn(okJson("""
+                {"droplets": [
+                    {"id": 1, "name": "existing", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"},
+                    {"id": 2, "name": "new-a", "status": "new", "region": {"slug": "nyc3"}, "created_at": "2024-02-01T00:00:00Z"},
+                    {"id": 3, "name": "new-b", "status": "new", "region": {"slug": "nyc3"}, "created_at": "2024-02-01T00:00:01Z"},
+                    {"id": 4, "name": "new-c", "status": "new", "region": {"slug": "nyc3"}, "created_at": "2024-02-01T00:00:02Z"}
+                ], "links": {"pages": {}}, "meta": {"total": 4}}
+                """)));
+
+        var trigger = buildTrigger(wireMockRuntimeInfo.getHttpBaseUrl());
+        var trigCtx = triggerContext("test-flow");
+        var condCtx = conditionContext(trigger, trigCtx, "test-flow");
+
+        trigger.evaluate(condCtx, trigCtx); // baseline
+
+        var fired = 0;
+        for (var poll = 0; poll < 5; poll++) {
+            if (trigger.evaluate(condCtx, trigCtx).isPresent()) {
+                fired++;
+            }
+        }
+
+        assertThat("all three new droplets must eventually fire", fired, is(3));
+    }
+
+    @Test
+    void parsesTheOldBareIdWatermarkFormatAsZeroMisses(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        triggerId = buildTriggerId();
+        stubGetJson("/v2/droplets", """
+            {"droplets": [
+                {"id": 1, "name": "existing-1", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"},
+                {"id": 2, "name": "existing-2", "status": "active", "region": {"slug": "nyc3"}, "created_at": "2024-01-01T00:00:00Z"}
+            ], "links": {"pages": {}}, "meta": {"total": 2}}
+            """);
+
+        var trigger = buildTrigger(wireMockRuntimeInfo.getHttpBaseUrl());
+        var trigCtx = triggerContext("test-flow");
+        var condCtx = conditionContext(trigger, trigCtx, "test-flow");
+
+        // Seed a watermark in the pre-miss-counting format (bare comma-separated ids, no ":misses"),
+        // simulating an upgrade from the older version of this trigger.
+        var flowId = "test-flow";
+        var key = "digitalocean_droplet_trigger_" + flowId.length() + "_" + flowId + "_" + triggerId.length() + "_" + triggerId;
+        var kv = condCtx.getRunContext().namespaceKv("company.team");
+        kv.put(key, new KVValueAndMetadata(new KVMetadata(null, Duration.ofMinutes(10)), "1,2"));
+
+        var result = trigger.evaluate(condCtx, trigCtx);
+
+        assertThat("both ids already known in the old format must not be treated as new", result.isEmpty(), is(true));
+    }
 }

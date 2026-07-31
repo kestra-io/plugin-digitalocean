@@ -169,7 +169,8 @@ public class Trigger extends AbstractTrigger implements PollingTriggerInterface,
             }
         }
 
-        persistWatermark(kv, key, advanceWatermark(watermark, currentIds), ttl);
+        var firedId = newDroplet != null ? asString(newDroplet.get("id")) : null;
+        persistWatermark(kv, key, advanceWatermark(watermark, currentIds, firedId), ttl);
 
         if (newDroplet == null) {
             return Optional.empty();
@@ -225,44 +226,55 @@ public class Trigger extends AbstractTrigger implements PollingTriggerInterface,
     }
 
     /**
-     * Advances the watermark for the next poll: every id present in this poll's listing (including a
-     * newly-seen one) resets to 0 consecutive misses. An id missing from this poll keeps its entry with
-     * an incremented miss count, unless it has now reached {@link #MAX_CONSECUTIVE_MISSES} in a row, in
-     * which case it is dropped. This tolerates a transient gap in DigitalOcean's droplet listing (eventual
-     * consistency, a short page) without re-firing on an id that never actually disappeared.
+     * Advances the watermark for the next poll. Only ids already known to the watermark are carried
+     * forward here: an id still present in this poll's listing resets to 0 consecutive misses, an id
+     * missing from this poll keeps its entry with an incremented miss count unless it has now reached
+     * {@link #MAX_CONSECUTIVE_MISSES} in a row (dropped), and reportedId, the one id actually fired this
+     * poll (or null if none fired), is added at 0 misses.
+     *
+     * This must NOT seed every currently-listed id: doing so would mark every other newly-appeared
+     * droplet from the same poll as already-seen before it ever gets reported, silently losing it (this
+     * trigger fires at most one new droplet per poll, see evaluate()).
      */
-    private static Map<String, Integer> advanceWatermark(Map<String, Integer> watermark, Set<String> currentIds) {
+    private static Map<String, Integer> advanceWatermark(Map<String, Integer> watermark, Set<String> currentIds, String reportedId) {
         var updated = new LinkedHashMap<String, Integer>();
-        for (var id : currentIds) {
-            updated.put(id, 0);
-        }
         for (var entry : watermark.entrySet()) {
             if (currentIds.contains(entry.getKey())) {
-                continue;
+                updated.put(entry.getKey(), 0);
+            } else if (entry.getValue() + 1 < MAX_CONSECUTIVE_MISSES) {
+                updated.put(entry.getKey(), entry.getValue() + 1);
             }
-            var misses = entry.getValue() + 1;
-            if (misses < MAX_CONSECUTIVE_MISSES) {
-                updated.put(entry.getKey(), misses);
-            }
+        }
+        if (reportedId != null) {
+            updated.put(reportedId, 0);
         }
         return updated;
     }
 
-    /** Persisted as compact "id:misses,id:misses,..." pairs, e.g. "3164444:0,3164445:2". */
+    /**
+     * Persisted as compact "id:misses,id:misses,..." pairs, e.g. "3164444:0,3164445:2". Also accepts the
+     * older bare-id format ("3164444,3164445", no misses) from a watermark written before this trigger
+     * tracked consecutive misses, parsing each bare id as 0 misses instead of dropping the whole entry
+     * (which would otherwise treat every droplet as new and fire once, spuriously, right after upgrade).
+     */
     private static Map<String, Integer> parseWatermark(Object raw) {
         var watermark = new LinkedHashMap<String, Integer>();
         if (!(raw instanceof String str) || str.isBlank()) {
             return watermark;
         }
         for (var entry : str.split(",")) {
+            if (entry.isBlank()) {
+                continue;
+            }
             var parts = entry.split(":", 2);
-            if (parts.length != 2) {
+            if (parts.length == 1) {
+                watermark.put(parts[0], 0);
                 continue;
             }
             try {
                 watermark.put(parts[0], Integer.parseInt(parts[1]));
             } catch (NumberFormatException e) {
-                // Malformed entry (e.g. leftover from an older watermark format): skip it rather than fail evaluation.
+                // Malformed entry: skip it rather than fail evaluation.
             }
         }
         return watermark;
