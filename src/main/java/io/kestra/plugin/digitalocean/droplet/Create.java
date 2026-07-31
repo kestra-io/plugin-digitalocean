@@ -100,10 +100,10 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
     @Override
     public DropletOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
-        var rSize = runContext.render(size).as(String.class).orElseThrow(() -> new IllegalArgumentException("size is required"));
-        var rImage = runContext.render(image).as(String.class).orElseThrow(() -> new IllegalArgumentException("image is required"));
+        var rName = requireRendered(runContext, name, String.class, "name");
+        var rRegion = requireRendered(runContext, region, String.class, "region");
+        var rSize = requireRendered(runContext, size, String.class, "size");
+        var rImage = requireRendered(runContext, image, String.class, "image");
         var rSshKeys = runContext.render(sshKeys).asList(String.class);
         var rTags = runContext.render(tags).asList(String.class);
         var rBackups = runContext.render(backups).as(Boolean.class).orElse(false);

@@ -58,9 +58,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Cluste
     @Override
     public ClusterOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rClusterId = runContext.render(clusterId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("clusterId is required")
-        );
+        var rClusterId = requireRendered(runContext, clusterId, String.class, "clusterId");
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

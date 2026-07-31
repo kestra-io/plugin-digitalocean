@@ -93,10 +93,10 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dom
     @Override
     public DomainRecordOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rDomain = runContext.render(domain).as(String.class).orElseThrow(() -> new IllegalArgumentException("domain is required"));
-        var rType = runContext.render(recordType).as(RecordType.class).orElseThrow(() -> new IllegalArgumentException("recordType is required"));
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rData = runContext.render(data).as(String.class).orElseThrow(() -> new IllegalArgumentException("data is required"));
+        var rDomain = requireRendered(runContext, domain, String.class, "domain");
+        var rType = requireRendered(runContext, recordType, RecordType.class, "recordType");
+        var rName = requireRendered(runContext, name, String.class, "name");
+        var rData = requireRendered(runContext, data, String.class, "data");
         var rTtl = runContext.render(ttl).as(Integer.class).orElse(1800);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);

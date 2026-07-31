@@ -66,8 +66,8 @@ public class Attach extends AbstractDigitalOceanTask implements RunnableTask<Abs
     @Override
     public ActionOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rVolumeId = runContext.render(volumeId).as(String.class).orElseThrow(() -> new IllegalArgumentException("volumeId is required"));
-        var rDropletId = runContext.render(dropletId).as(String.class).orElseThrow(() -> new IllegalArgumentException("dropletId is required"));
+        var rVolumeId = requireRendered(runContext, volumeId, String.class, "volumeId");
+        var rDropletId = requireRendered(runContext, dropletId, String.class, "dropletId");
         var rRegion = runContext.render(region).as(String.class).orElse(null);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);

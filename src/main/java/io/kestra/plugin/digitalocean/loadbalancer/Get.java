@@ -58,9 +58,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<LoadBa
     @Override
     public LoadBalancerOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rLoadBalancerId = runContext.render(loadBalancerId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("loadBalancerId is required")
-        );
+        var rLoadBalancerId = requireRendered(runContext, loadBalancerId, String.class, "loadBalancerId");
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

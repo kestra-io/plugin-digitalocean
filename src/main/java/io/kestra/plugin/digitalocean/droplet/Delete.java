@@ -56,9 +56,7 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
     @Override
     public VoidOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rDropletId = runContext.render(dropletId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("dropletId is required")
-        );
+        var rDropletId = requireRendered(runContext, dropletId, String.class, "dropletId");
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

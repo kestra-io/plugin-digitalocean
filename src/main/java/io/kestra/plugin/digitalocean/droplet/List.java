@@ -2,14 +2,9 @@ package io.kestra.plugin.digitalocean.droplet;
 
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
-import io.kestra.core.models.annotations.PluginProperty;
-import io.kestra.core.models.property.Property;
-import io.kestra.core.models.tasks.RunnableTask;
-import io.kestra.core.models.tasks.common.FetchType;
 import io.kestra.core.runners.RunContext;
-import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
+import io.kestra.plugin.digitalocean.AbstractDigitalOceanListTask;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -45,35 +40,20 @@ import lombok.experimental.SuperBuilder;
         )
     }
 )
-public class List extends AbstractDigitalOceanTask implements RunnableTask<AbstractDigitalOceanTask.PageOutput> {
-
-    @Schema(title = "Page size", description = "Number of droplets requested per page. Defaults to 200, the maximum allowed by the DigitalOcean API.")
-    @Builder.Default
-    @PluginProperty(group = "processing")
-    private Property<Integer> perPage = Property.ofValue(200);
-
-    @Schema(
-        title = "How to fetch the results",
-        description = "FETCH returns all droplets, FETCH_ONE returns the first droplet, STORE saves them to " +
-            "internal storage as an ion file, NONE returns only the count. Defaults to FETCH."
-    )
-    @Builder.Default
-    @PluginProperty(group = "processing")
-    private Property<FetchType> fetchType = Property.ofValue(FetchType.FETCH);
+public class List extends AbstractDigitalOceanListTask {
 
     @Override
-    public PageOutput run(RunContext runContext) throws Exception {
-        var logger = runContext.logger();
-        var rPerPage = requireInRange("perPage", runContext.render(perPage).as(Integer.class).orElse(200), 1, 200);
-        var rApiToken = renderApiToken(runContext);
-        var rBaseUrl = renderBaseUrl(runContext);
+    protected String path(RunContext runContext) {
+        return "v2/droplets";
+    }
 
-        logger.info("Listing DigitalOcean droplets");
+    @Override
+    protected String arrayKey() {
+        return "droplets";
+    }
 
-        var result = fetchAllPages(runContext, options, rApiToken, rBaseUrl, "v2/droplets", rPerPage, "droplets");
-
-        logger.info("Found {} droplet(s)", result.total());
-
-        return toPageOutput(runContext, fetchType, result.items(), result.total());
+    @Override
+    protected String resourceLabel() {
+        return "droplet(s)";
     }
 }

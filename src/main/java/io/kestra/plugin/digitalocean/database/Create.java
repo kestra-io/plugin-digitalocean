@@ -88,11 +88,11 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dat
     @Override
     public DatabaseOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rEngine = runContext.render(engine).as(String.class).orElseThrow(() -> new IllegalArgumentException("engine is required"));
-        var rVersion = runContext.render(engineVersion).as(String.class).orElseThrow(() -> new IllegalArgumentException("engineVersion is required"));
-        var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
-        var rSize = runContext.render(size).as(String.class).orElseThrow(() -> new IllegalArgumentException("size is required"));
+        var rName = requireRendered(runContext, name, String.class, "name");
+        var rEngine = requireRendered(runContext, engine, String.class, "engine");
+        var rVersion = requireRendered(runContext, engineVersion, String.class, "engineVersion");
+        var rRegion = requireRendered(runContext, region, String.class, "region");
+        var rSize = requireRendered(runContext, size, String.class, "size");
         var rNumNodes = requireInRange("numNodes", runContext.render(numNodes).as(Integer.class).orElse(1), 1, 3);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);

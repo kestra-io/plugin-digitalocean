@@ -77,9 +77,9 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Vol
     @Override
     public VolumeOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
-        var rSizeGigabytes = requireInRange("sizeGigabytes", runContext.render(sizeGigabytes).as(Long.class).orElseThrow(() -> new IllegalArgumentException("sizeGigabytes is required")), 1, 16384);
+        var rName = requireRendered(runContext, name, String.class, "name");
+        var rRegion = requireRendered(runContext, region, String.class, "region");
+        var rSizeGigabytes = requireInRange("sizeGigabytes", requireRendered(runContext, sizeGigabytes, Long.class, "sizeGigabytes"), 1, 16384);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

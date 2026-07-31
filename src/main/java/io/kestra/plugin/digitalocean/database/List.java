@@ -2,14 +2,9 @@ package io.kestra.plugin.digitalocean.database;
 
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
-import io.kestra.core.models.annotations.PluginProperty;
-import io.kestra.core.models.property.Property;
-import io.kestra.core.models.tasks.RunnableTask;
-import io.kestra.core.models.tasks.common.FetchType;
 import io.kestra.core.runners.RunContext;
-import io.kestra.plugin.digitalocean.AbstractDigitalOceanTask;
+import io.kestra.plugin.digitalocean.AbstractDigitalOceanListTask;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -52,37 +47,21 @@ import java.util.Map;
         )
     }
 )
-public class List extends AbstractDigitalOceanTask implements RunnableTask<AbstractDigitalOceanTask.PageOutput> {
-
-    @Schema(title = "Page size", description = "Number of database clusters requested per page. Defaults to 200, the maximum allowed by the DigitalOcean API.")
-    @Builder.Default
-    @PluginProperty(group = "processing")
-    private Property<Integer> perPage = Property.ofValue(200);
-
-    @Schema(
-        title = "How to fetch the results",
-        description = "FETCH returns all database clusters, FETCH_ONE returns the first one, STORE saves them to " +
-            "internal storage as an ion file, NONE returns only the count. Defaults to FETCH."
-    )
-    @Builder.Default
-    @PluginProperty(group = "processing")
-    private Property<FetchType> fetchType = Property.ofValue(FetchType.FETCH);
+public class List extends AbstractDigitalOceanListTask {
 
     @Override
-    public PageOutput run(RunContext runContext) throws Exception {
-        var logger = runContext.logger();
-        var rPerPage = requireInRange("perPage", runContext.render(perPage).as(Integer.class).orElse(200), 1, 200);
-        var rApiToken = renderApiToken(runContext);
-        var rBaseUrl = renderBaseUrl(runContext);
+    protected String path(RunContext runContext) {
+        return "v2/databases";
+    }
 
-        logger.info("Listing DigitalOcean database clusters");
+    @Override
+    protected String arrayKey() {
+        return "databases";
+    }
 
-        var result = fetchAllPages(runContext, options, rApiToken, rBaseUrl, "v2/databases", rPerPage, "databases");
-
-        logger.info("Found {} database cluster(s)", result.total());
-
-        var rows = result.items().stream().map(List::sanitize).toList();
-        return toPageOutput(runContext, fetchType, rows, result.total());
+    @Override
+    protected String resourceLabel() {
+        return "database cluster(s)";
     }
 
     /**
@@ -90,11 +69,14 @@ public class List extends AbstractDigitalOceanTask implements RunnableTask<Abstr
      * and private_connection each carry a user/password and a uri with the password inlined, and users
      * carries a password per database user. Dropping only "password" would still leak it through uri.
      */
-    private static Map<String, Object> sanitize(Map<String, Object> database) {
-        var sanitized = new LinkedHashMap<>(database);
-        sanitized.remove("connection");
-        sanitized.remove("private_connection");
-        sanitized.remove("users");
-        return sanitized;
+    @Override
+    protected java.util.List<Map<String, Object>> transformRows(RunContext runContext, java.util.List<Map<String, Object>> rows) {
+        return rows.stream().map(database -> {
+            var sanitized = new LinkedHashMap<>(database);
+            sanitized.remove("connection");
+            sanitized.remove("private_connection");
+            sanitized.remove("users");
+            return (Map<String, Object>) sanitized;
+        }).toList();
     }
 }

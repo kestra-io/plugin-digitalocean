@@ -56,9 +56,7 @@ public class Delete extends AbstractDigitalOceanTask implements RunnableTask<Voi
     @Override
     public VoidOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rClusterId = runContext.render(clusterId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("clusterId is required")
-        );
+        var rClusterId = requireRendered(runContext, clusterId, String.class, "clusterId");
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

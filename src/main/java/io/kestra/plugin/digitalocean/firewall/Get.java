@@ -58,9 +58,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Firewa
     @Override
     public FirewallOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rFirewallId = runContext.render(firewallId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("firewallId is required")
-        );
+        var rFirewallId = requireRendered(runContext, firewallId, String.class, "firewallId");
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

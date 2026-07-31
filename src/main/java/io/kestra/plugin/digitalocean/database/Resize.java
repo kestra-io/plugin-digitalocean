@@ -71,10 +71,8 @@ public class Resize extends AbstractDigitalOceanTask implements RunnableTask<Voi
     @Override
     public VoidOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rDatabaseId = runContext.render(databaseId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("databaseId is required")
-        );
-        var rSize = runContext.render(size).as(String.class).orElseThrow(() -> new IllegalArgumentException("size is required"));
+        var rDatabaseId = requireRendered(runContext, databaseId, String.class, "databaseId");
+        var rSize = requireRendered(runContext, size, String.class, "size");
         var rNumNodes = requireInRange("numNodes", runContext.render(numNodes).as(Integer.class).orElse(1), 1, 3);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);

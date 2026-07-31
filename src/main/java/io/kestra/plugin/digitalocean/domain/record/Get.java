@@ -64,8 +64,8 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Domain
     @Override
     public DomainRecordOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rDomain = runContext.render(domain).as(String.class).orElseThrow(() -> new IllegalArgumentException("domain is required"));
-        var rRecordId = runContext.render(recordId).as(String.class).orElseThrow(() -> new IllegalArgumentException("recordId is required"));
+        var rDomain = requireRendered(runContext, domain, String.class, "domain");
+        var rRecordId = requireRendered(runContext, recordId, String.class, "recordId");
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 

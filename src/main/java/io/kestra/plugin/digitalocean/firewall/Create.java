@@ -96,7 +96,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Fir
     @Override
     public FirewallOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
+        var rName = requireRendered(runContext, name, String.class, "name");
         @SuppressWarnings("unchecked")
         var rInboundRules = (List<Map<String, Object>>) runContext.render(inboundRules).asList(Map.class);
         @SuppressWarnings("unchecked")

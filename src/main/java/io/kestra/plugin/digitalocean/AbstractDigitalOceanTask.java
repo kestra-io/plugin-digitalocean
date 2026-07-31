@@ -97,6 +97,18 @@ public abstract class AbstractDigitalOceanTask extends Task {
     }
 
     /**
+     * Renders a required property and fails with a message naming the property instead of an opaque
+     * NoSuchElementException, replacing the repeated
+     * {@code runContext.render(x).as(T.class).orElseThrow(() -> new IllegalArgumentException("x is required"))}
+     * pattern used across every task.
+     */
+    public static <T> T requireRendered(RunContext runContext, Property<T> property, Class<T> type, String propertyName) throws IllegalVariableEvaluationException {
+        return runContext.render(property).as(type).orElseThrow(
+            () -> new IllegalArgumentException(propertyName + " is required")
+        );
+    }
+
+    /**
      * Shared HTTP call logic: attaches the bearer token, executes the request, and on a non-2xx response
      * rewrites the failure into a clear, actionable message (never a raw stack trace). Defaults to
      * {@code Accept: application/json}, the shape every endpoint but the kubeconfig download returns.
@@ -114,11 +126,32 @@ public abstract class AbstractDigitalOceanTask extends Task {
     /**
      * Same as {@link #request(RunContext, HttpConfiguration, String, HttpRequest.HttpRequestBuilder, Class)}
      * but with an explicit Accept header, for the rare endpoint (the DOKS kubeconfig download) that does
-     * not return JSON.
+     * not return JSON. Opens and closes its own HttpClient for this single call.
      */
     public static <RES> HttpResponse<RES> request(
         RunContext runContext,
         HttpConfiguration options,
+        String apiToken,
+        HttpRequest.HttpRequestBuilder requestBuilder,
+        Class<RES> responseType,
+        String acceptHeader
+    ) throws Exception {
+        var configBuilder = options != null ? options.toBuilder() : HttpConfiguration.builder();
+        try (var client = new HttpClient(runContext, configBuilder.build())) {
+            return request(client, runContext, apiToken, requestBuilder, responseType, acceptHeader);
+        }
+    }
+
+    /**
+     * Core request logic shared by every overload above and by {@link #fetchAllPages}: attaches the bearer
+     * token, executes the request against the given (already open) client, and on a non-2xx response
+     * rewrites the failure into a clear, actionable message. Accepting the client lets a single task run,
+     * especially {@code fetchAllPages}'s multi-page loop, reuse one HttpClient (and its connection pool)
+     * instead of doing a fresh TLS handshake per page.
+     */
+    private static <RES> HttpResponse<RES> request(
+        HttpClient client,
+        RunContext runContext,
         String apiToken,
         HttpRequest.HttpRequestBuilder requestBuilder,
         Class<RES> responseType,
@@ -130,9 +163,7 @@ public abstract class AbstractDigitalOceanTask extends Task {
             .addHeader("Authorization", "Bearer " + apiToken)
             .build();
 
-        var configBuilder = options != null ? options.toBuilder() : HttpConfiguration.builder();
-
-        try (var client = new HttpClient(runContext, configBuilder.build())) {
+        try {
             var response = client.request(request, String.class);
             var rawBody = response.getBody();
 
@@ -168,6 +199,12 @@ public abstract class AbstractDigitalOceanTask extends Task {
         @SuppressWarnings("unchecked")
         var result = body != null ? (Map<String, Object>) body : new LinkedHashMap<String, Object>();
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> requestJson(HttpClient client, RunContext runContext, String apiToken, HttpRequest.HttpRequestBuilder requestBuilder) throws Exception {
+        var body = request(client, runContext, apiToken, requestBuilder, Map.class, "application/json").getBody();
+        return body != null ? (Map<String, Object>) body : new LinkedHashMap<>();
     }
 
     private static HttpClientResponseException rewriteError(Logger logger, HttpClientResponseException e) {
@@ -360,30 +397,35 @@ public abstract class AbstractDigitalOceanTask extends Task {
         String url = join(baseUrl, path) + (path.contains("?") ? "&" : "?") + "per_page=" + perPage;
         var pageCount = 0;
 
-        while (url != null) {
-            pageCount++;
-            if (pageCount > maxPages) {
-                throw new IllegalStateException(
-                    "DigitalOcean API pagination for \"" + path + "\" exceeded " + maxPages + " pages without " +
-                        "reaching the end of links.pages.next. This looks like a cyclic or self-referential " +
-                        "next link rather than a legitimate result set, so pagination was aborted instead of " +
-                        "looping forever."
-                );
+        // One HttpClient (and its connection pool) for every page of this call, instead of a fresh
+        // client, and a fresh TLS handshake, per page.
+        var configBuilder = options != null ? options.toBuilder() : HttpConfiguration.builder();
+        try (var client = new HttpClient(runContext, configBuilder.build())) {
+            while (url != null) {
+                pageCount++;
+                if (pageCount > maxPages) {
+                    throw new IllegalStateException(
+                        "DigitalOcean API pagination for \"" + path + "\" exceeded " + maxPages + " pages without " +
+                            "reaching the end of links.pages.next. This looks like a cyclic or self-referential " +
+                            "next link rather than a legitimate result set, so pagination was aborted instead of " +
+                            "looping forever."
+                    );
+                }
+
+                var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
+                var body = requestJson(client, runContext, apiToken, requestBuilder);
+
+                items.addAll(extractArray(body, arrayKey));
+
+                var meta = asMap(body.get("meta"));
+                if (meta != null && meta.get("total") instanceof Number number) {
+                    total = number.longValue();
+                }
+
+                var links = asMap(body.get("links"));
+                var pages = links != null ? asMap(links.get("pages")) : null;
+                url = pages != null && pages.get("next") != null ? String.valueOf(pages.get("next")) : null;
             }
-
-            var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
-            var body = requestJson(runContext, options, apiToken, requestBuilder);
-
-            items.addAll(extractArray(body, arrayKey));
-
-            var meta = asMap(body.get("meta"));
-            if (meta != null && meta.get("total") instanceof Number number) {
-                total = number.longValue();
-            }
-
-            var links = asMap(body.get("links"));
-            var pages = links != null ? asMap(links.get("pages")) : null;
-            url = pages != null && pages.get("next") != null ? String.valueOf(pages.get("next")) : null;
         }
 
         // Some DigitalOcean list endpoints (databases is one) return the items but leave meta.total

@@ -58,9 +58,7 @@ public class Get extends AbstractDigitalOceanTask implements RunnableTask<Volume
     @Override
     public VolumeOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rVolumeId = runContext.render(volumeId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("volumeId is required")
-        );
+        var rVolumeId = requireRendered(runContext, volumeId, String.class, "volumeId");
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
