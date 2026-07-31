@@ -29,8 +29,8 @@ List tasks share the same shape: `perPage` (defaults to 200, the API maximum) an
 (`FETCH`, `FETCH_ONE`, `STORE`, or `NONE`, defaults to `FETCH`), following DigitalOcean's page-based
 pagination automatically and reporting the API's `total` count regardless of `fetchType`.
 
-- **`droplet`**: `List`, `Get`, `Create`, `Delete`, and `Resize` (which despite its name also runs power
-  actions: `POWER_ON`, `POWER_OFF`, `REBOOT`, `SNAPSHOT`, in addition to the default `RESIZE`).
+- **`droplet`**: `List`, `Get`, `Create`, `Delete`, `Resize` (change size and/or disk), and `Action`
+  (`POWER_ON`, `POWER_OFF`, `REBOOT`, or `SNAPSHOT`, the last taking an optional `name`).
 - **`kubernetes`**: `List`, `Get`, `Create`, `Delete`, and `GetKubeconfig`. The kubeconfig contains a client
   certificate and key, so it is only ever written to Kestra internal storage, never returned as a string
   output.
@@ -50,9 +50,13 @@ pagination automatically and reporting the API's `total` count regardless of `fe
   excluded because DigitalOcean manages a zone's SOA record automatically and does not allow creating one.
 - **`firewall`**: `List`, `Get`, `Create`, and `Delete`.
 
-Nested inputs that are inherently a list of objects (Kubernetes node pools, load balancer forwarding
-rules, firewall inbound/outbound rules) are modeled as `Property<List<Map<String, Object>>>`, following
-DigitalOcean's own JSON shape for each field, rather than a dedicated type per rule variant.
+Kubernetes node pools (`kubernetes.Create.nodePools`, a `NodePool` with `size`, `name`, `count`) and load
+balancer forwarding rules (`loadbalancer.Create`/`Update.forwardingRules`, a `ForwardingRule` with
+`entryProtocol`, `entryPort`, `targetProtocol`, `targetPort`, and optional `certificateId` and
+`tlsPassthrough`) are typed classes: write idiomatic camelCase field names in the flow, and each is mapped
+to DigitalOcean's own JSON keys internally. Firewall's inbound/outbound rules have four different
+source/destination variants and stay modeled as `Property<List<Map<String, Object>>>`, following
+DigitalOcean's own JSON shape directly rather than a dedicated type per variant.
 
 ### Creating a zone and a record together
 

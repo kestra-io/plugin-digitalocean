@@ -18,7 +18,6 @@ import lombok.experimental.SuperBuilder;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
 
 @SuperBuilder
 @ToString
@@ -45,10 +44,10 @@ import java.util.Map;
                     name: "web-lb"
                     region: "nyc3"
                     forwardingRules:
-                      - entry_protocol: "http"
-                        entry_port: 80
-                        target_protocol: "http"
-                        target_port: 80
+                      - entryProtocol: "http"
+                        entryPort: 80
+                        targetProtocol: "http"
+                        targetPort: 80
                     dropletIds:
                       - 3164444
                       - 3164445
@@ -70,11 +69,12 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Loa
 
     @Schema(
         title = "Forwarding rules",
-        description = "At least one forwarding rule, each with `entry_protocol`, `entry_port`, `target_protocol`, and `target_port`."
+        description = "At least one forwarding rule, each with `entryProtocol`, `entryPort`, `targetProtocol`, " +
+            "`targetPort`, and optional `certificateId` and `tlsPassthrough`."
     )
     @NotNull
     @PluginProperty(group = "main")
-    private Property<List<Map<String, Object>>> forwardingRules;
+    private Property<List<ForwardingRule>> forwardingRules;
 
     @Schema(title = "Droplet IDs", description = "Numeric IDs of the droplets to attach to the load balancer.")
     @PluginProperty(group = "advanced")
@@ -83,10 +83,10 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Loa
     @Override
     public LoadBalancerOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
+        var rName = requireRendered(runContext, name, String.class, "name");
+        var rRegion = requireRendered(runContext, region, String.class, "region");
         @SuppressWarnings("unchecked")
-        var rForwardingRules = (List<Map<String, Object>>) runContext.render(forwardingRules).asList(Map.class);
+        var rForwardingRules = (List<ForwardingRule>) runContext.render(forwardingRules).asList(ForwardingRule.class);
         if (rForwardingRules.isEmpty()) {
             throw new IllegalArgumentException("forwardingRules must contain at least one forwarding rule");
         }

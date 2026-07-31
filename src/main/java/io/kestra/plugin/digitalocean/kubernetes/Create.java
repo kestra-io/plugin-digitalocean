@@ -19,7 +19,6 @@ import lombok.experimental.SuperBuilder;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @SuperBuilder
 @ToString
@@ -78,16 +77,16 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Clu
     )
     @NotNull
     @PluginProperty(group = "main")
-    private Property<List<Map<String, Object>>> nodePools;
+    private Property<List<NodePool>> nodePools;
 
     @Override
     public ClusterOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
-        var rVersion = runContext.render(kubernetesVersion).as(String.class).orElseThrow(() -> new IllegalArgumentException("kubernetesVersion is required"));
+        var rName = requireRendered(runContext, name, String.class, "name");
+        var rRegion = requireRendered(runContext, region, String.class, "region");
+        var rVersion = requireRendered(runContext, kubernetesVersion, String.class, "kubernetesVersion");
         @SuppressWarnings("unchecked")
-        var rNodePools = (List<Map<String, Object>>) runContext.render(nodePools).asList(Map.class);
+        var rNodePools = (List<NodePool>) runContext.render(nodePools).asList(NodePool.class);
         if (rNodePools.isEmpty()) {
             throw new IllegalArgumentException("nodePools must contain at least one node pool");
         }

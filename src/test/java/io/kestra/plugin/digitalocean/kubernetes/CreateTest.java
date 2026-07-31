@@ -6,10 +6,10 @@ import io.kestra.core.models.property.Property;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTest;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
-
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -24,6 +24,10 @@ class CreateTest extends AbstractDigitalOceanTest {
         }
         """;
 
+    private static NodePool workerPool() {
+        return NodePool.builder().name("worker-pool").size("s-2vcpu-4gb").count(3).build();
+    }
+
     @Test
     void createsClusterAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
         stubPostJson("/v2/kubernetes/clusters", 201, CLUSTER_JSON);
@@ -36,7 +40,7 @@ class CreateTest extends AbstractDigitalOceanTest {
             .name(Property.ofValue("staging"))
             .region(Property.ofValue("nyc1"))
             .kubernetesVersion(Property.ofValue("1.30.2-do.0"))
-            .nodePools(Property.ofValue(java.util.List.of(Map.of("name", "worker-pool", "size", "s-2vcpu-4gb", "count", 3))))
+            .nodePools(Property.ofValue(java.util.List.of(workerPool())))
             .build();
 
         var output = task.run(runContext());
@@ -44,6 +48,10 @@ class CreateTest extends AbstractDigitalOceanTest {
         assertThat(output.getId(), is("cluster-2"));
         assertThat(output.getStatus(), is("provisioning"));
         verifyBearer(postRequestedFor(urlPathEqualTo("/v2/kubernetes/clusters")), "test-token");
+        verify(postRequestedFor(urlPathEqualTo("/v2/kubernetes/clusters"))
+            .withRequestBody(containing("\"size\":\"s-2vcpu-4gb\""))
+            .withRequestBody(containing("\"name\":\"worker-pool\""))
+            .withRequestBody(containing("\"count\":3")));
     }
 
     @Test
@@ -76,7 +84,7 @@ class CreateTest extends AbstractDigitalOceanTest {
             .name(Property.ofValue("staging"))
             .region(Property.ofValue("nyc1"))
             .kubernetesVersion(Property.ofValue("1.30.2-do.0"))
-            .nodePools(Property.ofValue(java.util.List.of(Map.of("name", "worker-pool", "size", "s-2vcpu-4gb", "count", 3))))
+            .nodePools(Property.ofValue(java.util.List.of(workerPool())))
             .build();
 
         var runContext = runContext();

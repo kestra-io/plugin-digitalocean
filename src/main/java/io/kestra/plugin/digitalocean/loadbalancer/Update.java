@@ -18,7 +18,6 @@ import lombok.experimental.SuperBuilder;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
 
 @SuperBuilder
 @ToString
@@ -48,15 +47,15 @@ import java.util.Map;
                     name: "web-lb"
                     region: "nyc3"
                     forwardingRules:
-                      - entry_protocol: "http"
-                        entry_port: 80
-                        target_protocol: "http"
-                        target_port: 80
-                      - entry_protocol: "https"
-                        entry_port: 443
-                        target_protocol: "http"
-                        target_port: 80
-                        tls_passthrough: false
+                      - entryProtocol: "http"
+                        entryPort: 80
+                        targetProtocol: "http"
+                        targetPort: 80
+                      - entryProtocol: "https"
+                        entryPort: 443
+                        targetProtocol: "http"
+                        targetPort: 80
+                        tlsPassthrough: false
                     dropletIds:
                       - 3164444
                       - 3164445
@@ -83,11 +82,12 @@ public class Update extends AbstractDigitalOceanTask implements RunnableTask<Loa
 
     @Schema(
         title = "Forwarding rules",
-        description = "Full replacement list of forwarding rules, each with `entry_protocol`, `entry_port`, `target_protocol`, and `target_port`."
+        description = "Full replacement list of forwarding rules, each with `entryProtocol`, `entryPort`, " +
+            "`targetProtocol`, `targetPort`, and optional `certificateId` and `tlsPassthrough`."
     )
     @NotNull
     @PluginProperty(group = "main")
-    private Property<List<Map<String, Object>>> forwardingRules;
+    private Property<List<ForwardingRule>> forwardingRules;
 
     @Schema(title = "Droplet IDs", description = "Full replacement list of numeric droplet IDs attached to the load balancer.")
     @PluginProperty(group = "advanced")
@@ -96,13 +96,11 @@ public class Update extends AbstractDigitalOceanTask implements RunnableTask<Loa
     @Override
     public LoadBalancerOutput run(RunContext runContext) throws Exception {
         var logger = runContext.logger();
-        var rLoadBalancerId = runContext.render(loadBalancerId).as(String.class).orElseThrow(
-            () -> new IllegalArgumentException("loadBalancerId is required")
-        );
-        var rName = runContext.render(name).as(String.class).orElseThrow(() -> new IllegalArgumentException("name is required"));
-        var rRegion = runContext.render(region).as(String.class).orElseThrow(() -> new IllegalArgumentException("region is required"));
+        var rLoadBalancerId = requireRendered(runContext, loadBalancerId, String.class, "loadBalancerId");
+        var rName = requireRendered(runContext, name, String.class, "name");
+        var rRegion = requireRendered(runContext, region, String.class, "region");
         @SuppressWarnings("unchecked")
-        var rForwardingRules = (List<Map<String, Object>>) runContext.render(forwardingRules).asList(Map.class);
+        var rForwardingRules = (List<ForwardingRule>) runContext.render(forwardingRules).asList(ForwardingRule.class);
         if (rForwardingRules.isEmpty()) {
             throw new IllegalArgumentException("forwardingRules must contain at least one forwarding rule");
         }

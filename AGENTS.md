@@ -25,11 +25,17 @@
 Single-module plugin. All authentication, HTTP, pagination, and error-handling logic lives in
 `io.kestra.plugin.digitalocean.AbstractDigitalOceanTask`, shared by every task across the resource
 sub-packages below. `droplet.Trigger` extends `AbstractTrigger` (not `Task`), so it reuses the abstract
-class's static helpers instead of extending it.
+class's static helpers instead of extending it. Every `List` task extends
+`io.kestra.plugin.digitalocean.AbstractDigitalOceanListTask`, which owns `perPage`/`fetchType` and the
+`run()` template method; a subclass only supplies the endpoint path, JSON array key, a log label, and
+(for `database.List`) a row-sanitizing hook. `requireRendered(runContext, property, type, name)` on
+`AbstractDigitalOceanTask` replaces the repeated `render(...).as(...).orElseThrow(...)` pattern for
+required properties.
 
 Source packages under `io.kestra.plugin.digitalocean`:
 
-- `droplet`: `List`, `Get`, `Create`, `Delete`, `Resize` (also runs power actions), `Trigger`.
+- `droplet`: `List`, `Get`, `Create`, `Delete`, `Resize` (size/disk only), `Action` (power on/off, reboot,
+  snapshot), `Trigger`.
 - `kubernetes`: `List`, `Get`, `Create`, `Delete`, `GetKubeconfig`.
 - `database`: `List`, `Get`, `Create`, `Delete`, `Resize`.
 - `loadbalancer`: `List`, `Get`, `Create`, `Update`, `Delete`.
@@ -42,16 +48,26 @@ Source packages under `io.kestra.plugin.digitalocean`:
 Each resource package has a shared `<Resource>Output` class (e.g. `DropletOutput`, `ClusterOutput`) reused
 by its `Get` and `Create` (and `Update` where applicable) tasks, since both return the same JSON shape.
 `Delete` tasks return `VoidOutput`. `List` tasks share `AbstractDigitalOceanTask.PageOutput`
-(`rows`/`row`/`uri`/`size`/`total`, following `FetchType`). Droplet resize and volume attach/detach share
+(`rows`/`row`/`uri`/`size`/`total`, following `FetchType`). Droplet actions and volume attach/detach share
 `AbstractDigitalOceanTask.ActionOutput` for DigitalOcean's async action response shape.
+
+Two list-of-object inputs are typed classes instead of raw maps: `kubernetes.NodePool` (`size`, `name`,
+`count`, already DigitalOcean's own field names) and `loadbalancer.ForwardingRule` (`entryProtocol`,
+`entryPort`, `targetProtocol`, `targetPort`, optional `certificateId`/`tlsPassthrough`, converted to
+DigitalOcean's snake_case via `ForwardingRule.toMap()` rather than Jackson annotations, since the same
+field also has to deserialize from a plain camelCase flow). Firewall's inbound/outbound rules keep the
+generic `Property<List<Map<String, Object>>>` shape since they have four different source/destination
+variants.
 
 No JSON/HTTP third-party dependency: all requests go through `io.kestra.core.http.client.HttpClient` and
 `io.kestra.core.serializers.JacksonMapper`.
 
 ### Key Plugin Classes
 
-- `io.kestra.plugin.digitalocean.AbstractDigitalOceanTask` (auth, pagination, error rewriting, FetchType helpers)
-- `io.kestra.plugin.digitalocean.droplet.Trigger` (polling trigger, KV-based watermark)
+- `io.kestra.plugin.digitalocean.AbstractDigitalOceanTask` (auth, pagination with a reused HttpClient per
+  call, error rewriting, FetchType helpers)
+- `io.kestra.plugin.digitalocean.AbstractDigitalOceanListTask` (shared `perPage`/`fetchType` and `run()` for every `List` task)
+- `io.kestra.plugin.digitalocean.droplet.Trigger` (polling trigger, KV-based watermark with a per-id consecutive-miss counter)
 
 ### Project Structure
 
@@ -59,6 +75,7 @@ No JSON/HTTP third-party dependency: all requests go through `io.kestra.core.htt
 plugin-digitalocean/
 ├── src/main/java/io/kestra/plugin/digitalocean/
 │   ├── AbstractDigitalOceanTask.java
+│   ├── AbstractDigitalOceanListTask.java
 │   ├── droplet/
 │   ├── kubernetes/
 │   ├── database/

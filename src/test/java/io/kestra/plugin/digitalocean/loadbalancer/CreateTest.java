@@ -6,10 +6,10 @@ import io.kestra.core.models.property.Property;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTest;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
-
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -23,6 +23,10 @@ class CreateTest extends AbstractDigitalOceanTest {
         }
         """;
 
+    private static ForwardingRule httpRule() {
+        return ForwardingRule.builder().entryProtocol("http").entryPort(80).targetProtocol("http").targetPort(80).build();
+    }
+
     @Test
     void createsLoadBalancerAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
         stubPostJson("/v2/load_balancers", 202, LOAD_BALANCER_JSON);
@@ -34,7 +38,7 @@ class CreateTest extends AbstractDigitalOceanTest {
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
             .name(Property.ofValue("api-lb"))
             .region(Property.ofValue("nyc3"))
-            .forwardingRules(Property.ofValue(java.util.List.of(Map.of("entry_protocol", "http", "entry_port", 80, "target_protocol", "http", "target_port", 80))))
+            .forwardingRules(Property.ofValue(java.util.List.of(httpRule())))
             .build();
 
         var output = task.run(runContext());
@@ -42,6 +46,40 @@ class CreateTest extends AbstractDigitalOceanTest {
         assertThat(output.getId(), is("lb-2"));
         assertThat(output.getStatus(), is("new"));
         verifyBearer(postRequestedFor(urlPathEqualTo("/v2/load_balancers")), "test-token");
+    }
+
+    @Test
+    void mapsCamelCaseForwardingRuleFieldsToDigitalOceanSnakeCase(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/load_balancers", 202, LOAD_BALANCER_JSON);
+
+        var rule = ForwardingRule.builder()
+            .entryProtocol("https")
+            .entryPort(443)
+            .targetProtocol("http")
+            .targetPort(80)
+            .certificateId("cert-1")
+            .tlsPassthrough(false)
+            .build();
+
+        var task = Create.builder()
+            .id("create-camel-case-test")
+            .type(Create.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .name(Property.ofValue("api-lb"))
+            .region(Property.ofValue("nyc3"))
+            .forwardingRules(Property.ofValue(java.util.List.of(rule)))
+            .build();
+
+        task.run(runContext());
+
+        verify(postRequestedFor(urlPathEqualTo("/v2/load_balancers"))
+            .withRequestBody(containing("\"entry_protocol\":\"https\""))
+            .withRequestBody(containing("\"entry_port\":443"))
+            .withRequestBody(containing("\"target_protocol\":\"http\""))
+            .withRequestBody(containing("\"target_port\":80"))
+            .withRequestBody(containing("\"certificate_id\":\"cert-1\""))
+            .withRequestBody(containing("\"tls_passthrough\":false")));
     }
 
     @Test
@@ -72,7 +110,7 @@ class CreateTest extends AbstractDigitalOceanTest {
             .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
             .name(Property.ofValue("api-lb"))
             .region(Property.ofValue("nyc3"))
-            .forwardingRules(Property.ofValue(java.util.List.of(Map.of("entry_protocol", "http", "entry_port", 80, "target_protocol", "http", "target_port", 80))))
+            .forwardingRules(Property.ofValue(java.util.List.of(httpRule())))
             .build();
 
         var runContext = runContext();
