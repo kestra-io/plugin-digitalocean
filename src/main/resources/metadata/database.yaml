@@ -1,5 +1,5 @@
 group: io.kestra.plugin.digitalocean.database
-name: "digitalocean-database"
+name: "database"
 title: "DigitalOcean Database"
 description: "Tasks for managing DigitalOcean managed database clusters."
 body: "List, read, create, resize, and delete managed database clusters (Postgres, MySQL, Redis, MongoDB, Kafka, OpenSearch)."
