@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.firewall
+name: "firewall"
+title: "DigitalOcean Firewall"
+description: "Tasks for managing DigitalOcean cloud firewalls."
+body: "List, read, create, and delete cloud firewalls, including their inbound and outbound rules."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

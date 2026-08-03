@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.droplet
+name: "droplet"
+title: "DigitalOcean Droplet"
+description: "Tasks and a trigger for managing DigitalOcean droplets (virtual machines)."
+body: "List, read, create, resize or run power actions on, and delete droplets. A polling trigger fires when a new droplet appears on the account."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"
