@@ -1,6 +1,8 @@
 package io.kestra.plugin.digitalocean.droplet;
 
 import io.kestra.core.http.HttpRequest;
+import io.kestra.core.http.client.HttpClient;
+import io.kestra.core.http.client.configurations.HttpConfiguration;
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.annotations.PluginProperty;
@@ -103,15 +105,32 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
     @PluginProperty(group = "advanced")
     private Property<String> userData;
 
-    @Schema(title = "Wait for the droplet to be active", description = "Whether to poll the droplet until it reports status active before returning. DigitalOcean only assigns the public IPv4 address once the droplet is active, so the ip output is null while it is still starting up if this is disabled. Defaults to true.")
+    @Schema(
+        title = "Wait for the droplet to be active",
+        description = """
+            Whether to poll the droplet until it reports status active before returning. DigitalOcean \
+            only assigns the public IPv4 address once the droplet is active, so the ip output is null \
+            while it is still starting up if this is disabled. Defaults to true."""
+    )
     @Builder.Default
     @PluginProperty(group = "advanced")
     private Property<Boolean> wait = Property.ofValue(true);
 
-    @Schema(title = "Wait timeout", description = "Maximum time to wait for the droplet to become active when wait is true. Defaults to PT5M (5 minutes).")
+    @Schema(
+        title = "Wait timeout",
+        description = """
+            Maximum time to wait for the droplet to become active when wait is true, between 1 second \
+            and 1 hour. Defaults to PT5M (5 minutes)."""
+    )
     @Builder.Default
     @PluginProperty(group = "advanced")
     private Property<Duration> waitTimeout = Property.ofValue(Duration.ofMinutes(5));
+
+    private static final long MIN_WAIT_TIMEOUT_SECONDS = 1;
+    private static final long MAX_WAIT_TIMEOUT_SECONDS = 3600;
+
+    /** Fixed delay between two consecutive activation polls, see {@link #waitUntilActive}. */
+    private static final long POLL_INTERVAL_MILLIS = 5000;
 
     @Override
     public DropletOutput run(RunContext runContext) throws Exception {
@@ -125,7 +144,13 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
         var rBackups = runContext.render(backups).as(Boolean.class).orElse(false);
         var rIpv6 = runContext.render(ipv6).as(Boolean.class).orElse(false);
         var rWait = runContext.render(wait).as(Boolean.class).orElse(true);
-        var rWaitTimeout = runContext.render(waitTimeout).as(Duration.class).orElse(Duration.ofMinutes(5));
+        var rWaitTimeoutSeconds = requireInRange(
+            "waitTimeout",
+            runContext.render(waitTimeout).as(Duration.class).orElse(Duration.ofMinutes(5)).toSeconds(),
+            MIN_WAIT_TIMEOUT_SECONDS,
+            MAX_WAIT_TIMEOUT_SECONDS
+        );
+        var rWaitTimeout = Duration.ofSeconds(rWaitTimeoutSeconds);
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
@@ -163,9 +188,11 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
     }
 
     /**
-     * Polls GET /v2/droplets/{id} every 5s until the droplet reports status active or the timeout
-     * elapses. The caller only invokes this when the create response isn't already active, so the
-     * "already active" case never issues an extra GET.
+     * Polls GET /v2/droplets/{id} every 5s (or less, right before the deadline) until the droplet reports
+     * status active or the timeout elapses. The caller only invokes this when the create response isn't
+     * already active, so the "already active" case never issues an extra GET. Reuses a single HttpClient
+     * across every poll of the loop instead of paying a fresh TLS handshake per iteration, the same
+     * pattern as {@code AbstractDigitalOceanTask#fetchAllPages}.
      */
     private Map<String, Object> waitUntilActive(RunContext runContext, String apiToken, String baseUrl, Long dropletId, Duration timeout) throws Exception {
         var logger = runContext.logger();
@@ -174,34 +201,42 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
         var deadline = Instant.now().plus(timeout);
         var url = join(baseUrl, "v2/droplets/" + dropletId);
 
-        while (true) {
-            var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
-            var body = requestJson(runContext, options, apiToken, requestBuilder);
-            var droplet = unwrap(body, "droplet");
-            var status = asString(droplet.get("status"));
+        var configBuilder = options != null ? options.toBuilder() : HttpConfiguration.builder();
+        try (var client = new HttpClient(runContext, configBuilder.build())) {
+            while (true) {
+                var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
+                var body = requestJson(client, runContext, apiToken, requestBuilder);
+                var droplet = unwrap(body, "droplet");
+                var status = asString(droplet.get("status"));
 
-            if ("active".equals(status)) {
-                var ip = DropletOutput.publicIpv4(droplet);
-                if (ip == null) {
-                    logger.warn("Droplet {} is active but has no public IPv4 address; ip output will be null", dropletId);
-                } else {
-                    logger.info("Droplet {} is active with IP {}", dropletId, ip);
+                if ("active".equals(status)) {
+                    var ip = DropletOutput.publicIpv4(droplet);
+                    if (ip == null) {
+                        logger.warn("Droplet {} is active but has no public IPv4 address; ip output will be null", dropletId);
+                    } else {
+                        logger.info("Droplet {} is active with IP {}", dropletId, ip);
+                    }
+                    return droplet;
                 }
-                return droplet;
-            }
 
-            if (!Instant.now().isBefore(deadline)) {
-                throw new IllegalStateException(
-                    "Droplet " + dropletId + " did not become active within " + timeout + " (last status: " + status +
-                        "). Increase waitTimeout, or set wait: false and poll separately."
-                );
-            }
+                var now = Instant.now();
+                if (!now.isBefore(deadline)) {
+                    throw new IllegalStateException(
+                        "Droplet " + dropletId + " did not become active within " + timeout + " (last status: " + status +
+                            "). Increase waitTimeout, or set wait: false and poll separately."
+                    );
+                }
 
-            try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw e;
+                // Never sleep past the deadline: the last poll of the loop must fire as close to it as
+                // possible instead of always waiting a full POLL_INTERVAL_MILLIS first.
+                var remainingMillis = Duration.between(now, deadline).toMillis();
+                var sleepMillis = Math.min(POLL_INTERVAL_MILLIS, remainingMillis);
+                try {
+                    Thread.sleep(sleepMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
             }
         }
     }

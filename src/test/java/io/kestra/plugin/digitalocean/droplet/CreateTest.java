@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CreateTest extends AbstractDigitalOceanTest {
 
@@ -104,9 +105,27 @@ class CreateTest extends AbstractDigitalOceanTest {
             .build();
 
         var runContext = runContext();
+        var start = System.nanoTime();
         var ex = assertThrows(IllegalStateException.class, () -> task.run(runContext));
+        var elapsed = Duration.ofNanos(System.nanoTime() - start);
+
         assertThat(ex.getMessage(), containsString("did not become active within"));
         assertThat(ex.getMessage(), containsString("Increase waitTimeout, or set wait: false"));
+        // The poll loop must not sleep past the 1s deadline before re-checking it: with the fixed 5s
+        // poll interval capped to the remaining time, this fails close to 1s instead of always rounding
+        // up to the next 5s boundary.
+        assertTrue(elapsed.toMillis() < 3000, "expected timeout close to the configured 1s, took " + elapsed);
+    }
+
+    @Test
+    void rejectsOutOfRangeWaitTimeout(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        var task = baseTask(wireMockRuntimeInfo)
+            .waitTimeout(Property.ofValue(Duration.ofHours(2)))
+            .build();
+
+        var runContext = runContext();
+        var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
+        assertThat(ex.getMessage(), containsString("waitTimeout must be between 1 and 3600"));
     }
 
     @Test
