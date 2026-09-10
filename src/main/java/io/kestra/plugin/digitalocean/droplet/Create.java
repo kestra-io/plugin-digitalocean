@@ -129,8 +129,12 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
     private static final long MIN_WAIT_TIMEOUT_SECONDS = 1;
     private static final long MAX_WAIT_TIMEOUT_SECONDS = 3600;
 
-    /** Fixed delay between two consecutive activation polls, see {@link #waitUntilActive}. */
-    private static final long POLL_INTERVAL_MILLIS = 5000;
+    /**
+     * Fixed delay between two consecutive activation polls, see {@link #waitUntilActive}. Package-private
+     * and non-final (instead of a {@code static final}) so tests can shrink it and avoid a real multi-second
+     * sleep per run; production code always sees the 5000ms default.
+     */
+    static long pollIntervalMillis = 5000;
 
     @Override
     public DropletOutput run(RunContext runContext) throws Exception {
@@ -144,13 +148,18 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
         var rBackups = runContext.render(backups).as(Boolean.class).orElse(false);
         var rIpv6 = runContext.render(ipv6).as(Boolean.class).orElse(false);
         var rWait = runContext.render(wait).as(Boolean.class).orElse(true);
-        var rWaitTimeoutSeconds = requireInRange(
-            "waitTimeout",
-            runContext.render(waitTimeout).as(Duration.class).orElse(Duration.ofMinutes(5)).toSeconds(),
-            MIN_WAIT_TIMEOUT_SECONDS,
-            MAX_WAIT_TIMEOUT_SECONDS
-        );
-        var rWaitTimeout = Duration.ofSeconds(rWaitTimeoutSeconds);
+        // Only render and range-check waitTimeout when it actually matters: a flow with wait: false must
+        // not fail because of an out-of-range waitTimeout that will never be used.
+        Duration rWaitTimeout = null;
+        if (rWait) {
+            var rWaitTimeoutSeconds = requireInRange(
+                "waitTimeout",
+                runContext.render(waitTimeout).as(Duration.class).orElse(Duration.ofMinutes(5)).toSeconds(),
+                MIN_WAIT_TIMEOUT_SECONDS,
+                MAX_WAIT_TIMEOUT_SECONDS
+            );
+            rWaitTimeout = Duration.ofSeconds(rWaitTimeoutSeconds);
+        }
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
@@ -230,7 +239,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
                 // Never sleep past the deadline: the last poll of the loop must fire as close to it as
                 // possible instead of always waiting a full POLL_INTERVAL_MILLIS first.
                 var remainingMillis = Duration.between(now, deadline).toMillis();
-                var sleepMillis = Math.min(POLL_INTERVAL_MILLIS, remainingMillis);
+                var sleepMillis = Math.min(pollIntervalMillis, remainingMillis);
                 try {
                     Thread.sleep(sleepMillis);
                 } catch (InterruptedException e) {

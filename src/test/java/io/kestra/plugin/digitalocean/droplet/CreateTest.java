@@ -70,7 +70,16 @@ class CreateTest extends AbstractDigitalOceanTest {
 
         var task = baseTask(wireMockRuntimeInfo).build();
 
-        var output = task.run(runContext());
+        // Shrink the poll interval so this scenario (one "new" poll, then "active") doesn't pay a real
+        // 5s Thread.sleep on every CI run; restored in the finally block so other tests keep the default.
+        var previousPollIntervalMillis = Create.pollIntervalMillis;
+        Create.pollIntervalMillis = 50;
+        DropletOutput output;
+        try {
+            output = task.run(runContext());
+        } finally {
+            Create.pollIntervalMillis = previousPollIntervalMillis;
+        }
 
         assertThat(output.getId(), is(3164445L));
         assertThat(output.getName(), is("web-02"));
@@ -126,6 +135,22 @@ class CreateTest extends AbstractDigitalOceanTest {
         var runContext = runContext();
         var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
         assertThat(ex.getMessage(), containsString("waitTimeout must be between 1 and 3600"));
+    }
+
+    @Test
+    void skipsWaitTimeoutValidationWhenWaitDisabled(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .wait(Property.ofValue(false))
+            .waitTimeout(Property.ofValue(Duration.ofHours(2)))
+            .build();
+
+        // waitTimeout has no effect when wait is false, so an out-of-range value must not fail the task.
+        var output = task.run(runContext());
+
+        assertThat(output.getStatus(), is("new"));
+        verify(0, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
     }
 
     @Test
