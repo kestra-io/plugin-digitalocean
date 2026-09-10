@@ -33,7 +33,7 @@ public class DropletOutput implements Output {
     @Schema(title = "Size slug", description = "Droplet size slug, e.g. s-1vcpu-1gb.")
     private final String sizeSlug;
 
-    @Schema(title = "Public IPv4 address", description = "First public IPv4 address assigned to the droplet, if any.")
+    @Schema(title = "Public IPv4 address", description = "First public IPv4 address assigned to the droplet. Only populated once the droplet is active; null while it is still starting up (status new) or if it has no public network.")
     private final String ip;
 
     @Schema(title = "Creation timestamp")
