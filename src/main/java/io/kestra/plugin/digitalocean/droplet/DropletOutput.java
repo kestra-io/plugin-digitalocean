@@ -54,7 +54,7 @@ public class DropletOutput implements Output {
             .build();
     }
 
-    static String publicIpv4(Map<String, Object> droplet) {
+    private static String publicIpv4(Map<String, Object> droplet) {
         var networks = asMap(droplet.get("networks"));
         if (networks == null || !(networks.get("v4") instanceof List<?> addresses)) {
             return null;

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
@@ -68,18 +69,13 @@ class CreateTest extends AbstractDigitalOceanTest {
             .whenScenarioStateIs("active")
             .willReturn(okJson(ACTIVE_DROPLET_JSON)));
 
-        var task = baseTask(wireMockRuntimeInfo).build();
-
         // Shrink the poll interval so this scenario (one "new" poll, then "active") doesn't pay a real
-        // 5s Thread.sleep on every CI run; restored in the finally block so other tests keep the default.
-        var previousPollIntervalMillis = Create.pollIntervalMillis;
-        Create.pollIntervalMillis = 50;
-        DropletOutput output;
-        try {
-            output = task.run(runContext());
-        } finally {
-            Create.pollIntervalMillis = previousPollIntervalMillis;
-        }
+        // 5s Thread.sleep on every CI run.
+        var task = baseTask(wireMockRuntimeInfo)
+            .pollInterval(Property.ofValue(Duration.ofMillis(50)))
+            .build();
+
+        var output = task.run(runContext());
 
         assertThat(output.getId(), is(3164445L));
         assertThat(output.getName(), is("web-02"));
@@ -87,6 +83,50 @@ class CreateTest extends AbstractDigitalOceanTest {
         assertThat(output.getIp(), is("203.0.113.10"));
         verifyBearer(postRequestedFor(urlPathEqualTo("/v2/droplets")), "test-token");
         verify(2, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void retriesOnTransientErrorWhilePolling(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation")
+            .whenScenarioStateIs(Scenario.STARTED)
+            .willSetStateTo("errored-once")
+            .willReturn(aResponse().withStatus(503).withBody("service unavailable")));
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation")
+            .whenScenarioStateIs("errored-once")
+            .willReturn(okJson(ACTIVE_DROPLET_JSON)));
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .pollInterval(Property.ofValue(Duration.ofMillis(50)))
+            .build();
+
+        var output = task.run(runContext());
+
+        assertThat(output.getStatus(), is("active"));
+        assertThat(output.getIp(), is("203.0.113.10"));
+        verify(2, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void failsFastOnTerminalStatus(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+        stubGetJson("/v2/droplets/3164445", DROPLET_JSON.replace("\"new\"", "\"off\""));
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .waitTimeout(Property.ofValue(Duration.ofMinutes(5)))
+            .build();
+
+        var runContext = runContext();
+        var start = System.nanoTime();
+        var ex = assertThrows(IllegalStateException.class, () -> task.run(runContext));
+        var elapsed = Duration.ofNanos(System.nanoTime() - start);
+
+        assertThat(ex.getMessage(), containsString("will not become active"));
+        assertThat(ex.getMessage(), containsString("\"off\""));
+        assertTrue(elapsed.toSeconds() < 5, "expected an immediate failure, not the full 5-minute waitTimeout, took " + elapsed);
+        verify(1, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
     }
 
     @Test
@@ -134,7 +174,7 @@ class CreateTest extends AbstractDigitalOceanTest {
 
         var runContext = runContext();
         var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
-        assertThat(ex.getMessage(), containsString("waitTimeout must be between 1 and 3600"));
+        assertThat(ex.getMessage(), containsString("waitTimeout must be between PT1S and PT1H, got PT2H"));
     }
 
     @Test
