@@ -237,7 +237,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
                 }
 
                 // Never sleep past the deadline: the last poll of the loop must fire as close to it as
-                // possible instead of always waiting a full POLL_INTERVAL_MILLIS first.
+                // possible instead of always waiting a full pollIntervalMillis first.
                 var remainingMillis = Duration.between(now, deadline).toMillis();
                 var sleepMillis = Math.min(pollIntervalMillis, remainingMillis);
                 try {
