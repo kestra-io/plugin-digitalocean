@@ -30,7 +30,11 @@ List tasks share the same shape: `perPage` (defaults to 200, the API maximum) an
 pagination automatically and reporting the API's `total` count regardless of `fetchType`.
 
 - **`droplet`**: `List`, `Get`, `Create`, `Delete`, `Resize` (change size and/or disk), and `Action`
-  (`POWER_ON`, `POWER_OFF`, `REBOOT`, or `SNAPSHOT`, the last taking an optional `name`).
+  (`POWER_ON`, `POWER_OFF`, `REBOOT`, or `SNAPSHOT`, the last taking an optional `name`). `Create`'s `ip`
+  output is only populated once the droplet is `active`. DigitalOcean assigns the public IPv4 address a
+  few tens of seconds after creation, so `Create` waits for that by default (`wait: true`,
+  `waitTimeout: PT5M`, `pollInterval: PT5S`). Set `wait: false` to return as soon as the API accepts the
+  creation request instead, in which case `ip` is `null`.
 - **`kubernetes`**: `List`, `Get`, `Create`, `Delete`, and `GetKubeconfig`. The kubeconfig contains a client
   certificate and key, so it is only ever written to Kestra internal storage, never returned as a string
   output.

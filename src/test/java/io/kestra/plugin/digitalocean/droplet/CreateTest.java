@@ -1,19 +1,29 @@
 package io.kestra.plugin.digitalocean.droplet;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import io.kestra.core.http.client.HttpClientResponseException;
 import io.kestra.core.models.property.Property;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTest;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CreateTest extends AbstractDigitalOceanTest {
 
@@ -24,11 +34,17 @@ class CreateTest extends AbstractDigitalOceanTest {
         }
         """;
 
-    @Test
-    void createsDropletAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
-        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+    private static final String ACTIVE_DROPLET_JSON = """
+        {
+          "droplet": {"id": 3164445, "name": "web-02", "status": "active", "size_slug": "s-1vcpu-1gb",
+             "region": {"slug": "nyc3"},
+             "networks": {"v4": [{"ip_address": "203.0.113.10", "type": "public"}]},
+             "created_at": "2024-01-01T00:00:00Z"}
+        }
+        """;
 
-        var task = Create.builder()
+    private Create.CreateBuilder<?, ?> baseTask(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        return Create.builder()
             .id("create-test")
             .type(Create.class.getName())
             .apiToken(Property.ofValue("test-token"))
@@ -37,15 +53,157 @@ class CreateTest extends AbstractDigitalOceanTest {
             .region(Property.ofValue("nyc3"))
             .size(Property.ofValue("s-1vcpu-1gb"))
             .image(Property.ofValue("ubuntu-22-04-x64"))
-            .tags(Property.ofValue(List.of("web")))
+            .tags(Property.ofValue(List.of("web")));
+    }
+
+    @Test
+    void createsDropletAndSendsBearerToken(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation")
+            .whenScenarioStateIs(Scenario.STARTED)
+            .willSetStateTo("active")
+            .willReturn(okJson(DROPLET_JSON)));
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation")
+            .whenScenarioStateIs("active")
+            .willReturn(okJson(ACTIVE_DROPLET_JSON)));
+
+        // Shrink the poll interval so this scenario (one "new" poll, then "active") doesn't pay a real
+        // 5s Thread.sleep on every CI run.
+        var task = baseTask(wireMockRuntimeInfo)
+            .pollInterval(Property.ofValue(Duration.ofMillis(50)))
             .build();
 
         var output = task.run(runContext());
 
         assertThat(output.getId(), is(3164445L));
         assertThat(output.getName(), is("web-02"));
-        assertThat(output.getStatus(), is("new"));
+        assertThat(output.getStatus(), is("active"));
+        assertThat(output.getIp(), is("203.0.113.10"));
         verifyBearer(postRequestedFor(urlPathEqualTo("/v2/droplets")), "test-token");
+        verify(2, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void retriesOnTransientErrorWhilePolling(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation")
+            .whenScenarioStateIs(Scenario.STARTED)
+            .willSetStateTo("errored-once")
+            .willReturn(aResponse().withStatus(503).withBody("service unavailable")));
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation")
+            .whenScenarioStateIs("errored-once")
+            .willReturn(okJson(ACTIVE_DROPLET_JSON)));
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .pollInterval(Property.ofValue(Duration.ofMillis(50)))
+            .build();
+
+        var output = task.run(runContext());
+
+        assertThat(output.getStatus(), is("active"));
+        assertThat(output.getIp(), is("203.0.113.10"));
+        verify(2, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void failsFastOnTerminalStatus(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+        stubGetJson("/v2/droplets/3164445", DROPLET_JSON.replace("\"new\"", "\"off\""));
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .waitTimeout(Property.ofValue(Duration.ofMinutes(5)))
+            .build();
+
+        var runContext = runContext();
+        var start = System.nanoTime();
+        var ex = assertThrows(IllegalStateException.class, () -> task.run(runContext));
+        var elapsed = Duration.ofNanos(System.nanoTime() - start);
+
+        assertThat(ex.getMessage(), containsString("will not become active"));
+        assertThat(ex.getMessage(), containsString("\"off\""));
+        assertTrue(elapsed.toSeconds() < 5, "expected an immediate failure, not the full 5-minute waitTimeout, took " + elapsed);
+        verify(1, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void skipsWaitWhenDisabled(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .wait(Property.ofValue(false))
+            .build();
+
+        var output = task.run(runContext());
+
+        assertThat(output.getStatus(), is("new"));
+        assertThat(output.getIp(), nullValue());
+        verify(0, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void failsWithActionableMessageOnTimeout(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445")).willReturn(okJson(DROPLET_JSON)));
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .waitTimeout(Property.ofValue(Duration.ofSeconds(1)))
+            .build();
+
+        var runContext = runContext();
+        var start = System.nanoTime();
+        var ex = assertThrows(IllegalStateException.class, () -> task.run(runContext));
+        var elapsed = Duration.ofNanos(System.nanoTime() - start);
+
+        assertThat(ex.getMessage(), containsString("did not become active within"));
+        assertThat(ex.getMessage(), containsString("Increase waitTimeout, or set wait: false"));
+        // The poll loop must not sleep past the 1s deadline before re-checking it: with the fixed 5s
+        // poll interval capped to the remaining time, this fails close to 1s instead of always rounding
+        // up to the next 5s boundary.
+        assertTrue(elapsed.toMillis() < 3000, "expected timeout close to the configured 1s, took " + elapsed);
+    }
+
+    @Test
+    void rejectsOutOfRangeWaitTimeout(WireMockRuntimeInfo wireMockRuntimeInfo) {
+        var task = baseTask(wireMockRuntimeInfo)
+            .waitTimeout(Property.ofValue(Duration.ofHours(2)))
+            .build();
+
+        var runContext = runContext();
+        var ex = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
+        assertThat(ex.getMessage(), containsString("waitTimeout must be between PT1S and PT1H, got PT2H"));
+    }
+
+    @Test
+    void skipsWaitTimeoutValidationWhenWaitDisabled(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .wait(Property.ofValue(false))
+            .waitTimeout(Property.ofValue(Duration.ofHours(2)))
+            .build();
+
+        // waitTimeout has no effect when wait is false, so an out-of-range value must not fail the task.
+        var output = task.run(runContext());
+
+        assertThat(output.getStatus(), is("new"));
+        verify(0, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void skipsPollingWhenAlreadyActive(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, ACTIVE_DROPLET_JSON);
+
+        var task = baseTask(wireMockRuntimeInfo).build();
+
+        var output = task.run(runContext());
+
+        assertThat(output.getStatus(), is("active"));
+        assertThat(output.getIp(), is("203.0.113.10"));
+        verify(0, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
     }
 
     @Test

@@ -201,8 +201,13 @@ public abstract class AbstractDigitalOceanTask extends Task {
         return result;
     }
 
+    /**
+     * Same as {@link #requestJson(RunContext, HttpConfiguration, String, HttpRequest.HttpRequestBuilder)}
+     * but against an already-open client, for a caller (e.g. a polling loop) that needs to reuse one
+     * {@link HttpClient} across several calls instead of paying a fresh TLS handshake per call.
+     */
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> requestJson(HttpClient client, RunContext runContext, String apiToken, HttpRequest.HttpRequestBuilder requestBuilder) throws Exception {
+    protected static Map<String, Object> requestJson(HttpClient client, RunContext runContext, String apiToken, HttpRequest.HttpRequestBuilder requestBuilder) throws Exception {
         var body = request(client, runContext, apiToken, requestBuilder, Map.class, "application/json").getBody();
         return body != null ? (Map<String, Object>) body : new LinkedHashMap<>();
     }
