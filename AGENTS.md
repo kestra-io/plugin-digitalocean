@@ -39,7 +39,8 @@ Source packages under `io.kestra.plugin.digitalocean`:
 - `kubernetes`: `List`, `Get`, `Create`, `Delete`, `GetKubeconfig`.
 - `database`: `List`, `Get`, `Create`, `Delete`, `Resize`.
 - `loadbalancer`: `List`, `Get`, `Create`, `Update`, `Delete`.
-- `volume`: `List`, `Get`, `Create`, `Delete`, `Attach`, `Detach`, `CreateSnapshot`.
+- `volume`: `List`, `Get`, `Create`, `Delete`, `Attach`, `Detach`, `Resize`, `CreateSnapshot`, plus `GetAction`
+  and `ListActions` to follow an action's status (`/v2/volumes/{id}/actions`).
 - `snapshot`: `List` (optionally filtered by `resourceType`), `Get`, `Delete` for droplet and volume snapshots
   (`/v2/snapshots`). Snapshots are created by `volume.CreateSnapshot` or by the droplet `snapshot` action.
 - `billing`: `GetBalance`, `ListBillingHistory`, `ListInvoices`, `ListInvoiceItems` (read-only, `/v2/customers/my/...`).
@@ -52,8 +53,9 @@ Source packages under `io.kestra.plugin.digitalocean`:
 Each resource package has a shared `<Resource>Output` class (e.g. `DropletOutput`, `ClusterOutput`) reused
 by its `Get` and `Create` (and `Update` where applicable) tasks, since both return the same JSON shape.
 `Delete` tasks return `VoidOutput`. `List` tasks share `AbstractDigitalOceanTask.PageOutput`
-(`rows`/`row`/`uri`/`size`/`total`, following `FetchType`). Droplet actions and volume attach/detach share
-`AbstractDigitalOceanTask.ActionOutput` for DigitalOcean's async action response shape. `snapshot.SnapshotOutput`
+(`rows`/`row`/`uri`/`size`/`total`, following `FetchType`). Droplet actions and volume attach/detach/resize share
+`AbstractDigitalOceanTask.ActionOutput` for DigitalOcean's async action response shape; `volume.GetAction`
+returns the fuller `VolumeActionOutput` (timestamps and region) when reading an action back. `snapshot.SnapshotOutput`
 is shared by `snapshot.Get` and `volume.CreateSnapshot`, and keeps the ID as a string because DigitalOcean returns
 an integer for droplet snapshots and a UUID for volume snapshots.
 

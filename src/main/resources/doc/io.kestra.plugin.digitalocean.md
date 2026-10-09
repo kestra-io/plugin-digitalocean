@@ -43,7 +43,10 @@ pagination automatically and reporting the API's `total` count regardless of `fe
 - **`loadbalancer`**: `List`, `Get`, `Create`, `Update`, and `Delete`. DigitalOcean's update endpoint
   replaces the full configuration, not a partial patch: `Update` always requires `name`, `region`, and
   `forwardingRules` again, even to change a single field.
-- **`volume`**: `List`, `Get`, `Create`, `Delete`, `Attach`, `Detach`, and `CreateSnapshot`.
+- **`volume`**: `List`, `Get`, `Create`, `Delete`, `Attach`, `Detach`, `Resize`, and `CreateSnapshot`, plus
+  `GetAction` and `ListActions` to follow the asynchronous attach, detach and resize actions. `Resize` only
+  grows a volume (up to 16 TiB) and does not grow the filesystem on it; pass its `actionId` output to
+  `GetAction` to check when the resize completes.
 - **`snapshot`**: `List`, `Get`, and `Delete` for droplet and volume snapshots (`/v2/snapshots`). `List`
   takes an optional `resourceType` (`DROPLET` or `VOLUME`). Snapshot IDs are kept as strings, since
   DigitalOcean returns an integer for droplet snapshots and a UUID for volume snapshots.

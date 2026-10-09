@@ -3,7 +3,7 @@ package io.kestra.plugin.digitalocean.volume;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Shared action request body builder for {@link Attach} and {@link Detach}: both post to the same actions endpoint. */
+/** Shared action request body builder for {@link Attach}, {@link Detach} and {@link Resize}: all post to the same actions endpoint. */
 final class VolumeActionPayload {
 
     private VolumeActionPayload() {
@@ -16,6 +16,14 @@ final class VolumeActionPayload {
         if (region != null) {
             payload.put("region", region);
         }
+        return payload;
+    }
+
+    static Map<String, Object> buildResize(int sizeGigabytes, String region) {
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("type", "resize");
+        payload.put("size_gigabytes", sizeGigabytes);
+        payload.put("region", region);
         return payload;
     }
 
