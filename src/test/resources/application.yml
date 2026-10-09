@@ -1,4 +1,6 @@
 kestra:
+  encryption:
+    secret-key: 5ZtY3pw0xTq8LmKc1vRb7NsHf2Gd9JaE
   repository:
     type: memory
   queue:
