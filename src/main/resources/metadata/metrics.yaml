@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.monitoring.metrics
+name: "metrics"
+title: "DigitalOcean Droplet Metrics"
+description: "Tasks for retrieving DigitalOcean Droplet monitoring metrics."
+body: "Fetch Droplet performance metrics for CPU, Memory, Bandwidth, and Filesystem."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

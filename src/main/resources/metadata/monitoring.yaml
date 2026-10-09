@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.monitoring
+name: "monitoring"
+title: "DigitalOcean Monitoring"
+description: "Tasks for DigitalOcean monitoring alert policies and droplet metrics."
+body: "Manage alert policies (create, read, update, delete, list) and fetch Droplet performance metrics (CPU, Memory, Bandwidth, Filesystem)."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

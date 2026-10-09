@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.monitoring.alertpolicy
+name: "alertpolicy"
+title: "DigitalOcean Alert Policies"
+description: "Tasks for managing DigitalOcean Monitoring alert policies."
+body: "List, read, create, update, and delete alert policies across DigitalOcean resources."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"
