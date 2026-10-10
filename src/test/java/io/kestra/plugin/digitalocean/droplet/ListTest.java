@@ -4,13 +4,18 @@ import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import io.kestra.core.http.client.HttpClientResponseException;
 import io.kestra.core.models.property.Property;
 import io.kestra.core.models.tasks.common.FetchType;
+import io.kestra.core.utils.IdUtils;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTest;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -46,6 +51,26 @@ class ListTest extends AbstractDigitalOceanTest {
         assertThat(output.getSize(), is(1));
         assertThat(output.getRows().getFirst().get("name"), is("web-01"));
         verifyBearer(getRequestedFor(urlPathEqualTo("/v2/droplets")), "test-token");
+    }
+
+    @Test
+    void sendsBearerTokenWhenOptionsAreSet(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubGetJson("/v2/droplets", DROPLETS_JSON);
+
+        var task = List.builder()
+            .id(IdUtils.create())
+            .type(List.class.getName())
+            .apiToken(Property.ofValue("test-token"))
+            .baseUrl(Property.ofValue(wireMockRuntimeInfo.getHttpBaseUrl()))
+            .options(readIdleTimeout(Duration.ofSeconds(5)))
+            .build();
+
+        var output = task.run(runContext());
+
+        assertThat(output.getTotal(), is(1L));
+        var sent = findAll(getRequestedFor(urlPathEqualTo("/v2/droplets")));
+        assertThat(sent, hasSize(1));
+        assertOnlyBearer(sent.getFirst(), "test-token");
     }
 
     @Test

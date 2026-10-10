@@ -3,7 +3,6 @@ package io.kestra.plugin.digitalocean.droplet;
 import io.kestra.core.http.HttpRequest;
 import io.kestra.core.http.client.HttpClient;
 import io.kestra.core.http.client.HttpClientResponseException;
-import io.kestra.core.http.client.configurations.HttpConfiguration;
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.annotations.PluginProperty;
@@ -234,8 +233,7 @@ public class Create extends AbstractDigitalOceanTask implements RunnableTask<Dro
         var url = join(baseUrl, "v2/droplets/" + dropletId);
         var lastStatus = "unknown";
 
-        var configBuilder = options != null ? options.toBuilder() : HttpConfiguration.builder();
-        try (var client = new HttpClient(runContext, configBuilder.build())) {
+        try (var client = new HttpClient(runContext, clientConfiguration(options))) {
             while (true) {
                 var requestBuilder = HttpRequest.builder().uri(URI.create(url)).method("GET");
                 try {
