@@ -4,6 +4,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import io.kestra.core.http.client.HttpClientResponseException;
 import io.kestra.core.models.property.Property;
+import io.kestra.core.utils.IdUtils;
 import io.kestra.plugin.digitalocean.AbstractDigitalOceanTest;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +12,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.findAll;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
@@ -20,6 +22,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -83,6 +86,39 @@ class CreateTest extends AbstractDigitalOceanTest {
         assertThat(output.getIp(), is("203.0.113.10"));
         verifyBearer(postRequestedFor(urlPathEqualTo("/v2/droplets")), "test-token");
         verify(2, getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+    }
+
+    @Test
+    void sendsBearerTokenWhenOptionsAreSet(WireMockRuntimeInfo wireMockRuntimeInfo) throws Exception {
+        stubPostJson("/v2/droplets", 202, DROPLET_JSON);
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation-options")
+            .whenScenarioStateIs(Scenario.STARTED)
+            .willSetStateTo("active")
+            .willReturn(okJson(DROPLET_JSON)));
+        stubFor(get(urlPathEqualTo("/v2/droplets/3164445"))
+            .inScenario("droplet-activation-options")
+            .whenScenarioStateIs("active")
+            .willReturn(okJson(ACTIVE_DROPLET_JSON)));
+
+        var task = baseTask(wireMockRuntimeInfo)
+            .id(IdUtils.create())
+            .wait(Property.ofValue(true))
+            .pollInterval(Property.ofValue(Duration.ofMillis(50)))
+            .options(readIdleTimeout(Duration.ofSeconds(5)))
+            .build();
+
+        var output = task.run(runContext());
+
+        assertThat(output.getStatus(), is("active"));
+        var created = findAll(postRequestedFor(urlPathEqualTo("/v2/droplets")));
+        assertThat(created, hasSize(1));
+        assertOnlyBearer(created.getFirst(), "test-token");
+        var polls = findAll(getRequestedFor(urlPathEqualTo("/v2/droplets/3164445")));
+        assertThat(polls, hasSize(2));
+        for (var poll : polls) {
+            assertOnlyBearer(poll, "test-token");
+        }
     }
 
     @Test

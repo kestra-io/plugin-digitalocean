@@ -109,6 +109,16 @@ public abstract class AbstractDigitalOceanTask extends Task {
     }
 
     /**
+     * Passes the caller's HTTP options through unchanged.
+     * Copying with {@code toBuilder()} is unsafe on Kestra 1.3: the deprecated
+     * {@code basicAuthUser}/{@code basicAuthPassword} builder methods replace {@code auth}
+     * with basic auth {@code null:null}, and the client then overwrites the bearer token.
+     */
+    protected static HttpConfiguration clientConfiguration(HttpConfiguration options) {
+        return options != null ? options : HttpConfiguration.builder().build();
+    }
+
+    /**
      * Shared HTTP call logic: attaches the bearer token, executes the request, and on a non-2xx response
      * rewrites the failure into a clear, actionable message (never a raw stack trace). Defaults to
      * {@code Accept: application/json}, the shape every endpoint but the kubeconfig download returns.
@@ -136,8 +146,7 @@ public abstract class AbstractDigitalOceanTask extends Task {
         Class<RES> responseType,
         String acceptHeader
     ) throws Exception {
-        var configBuilder = options != null ? options.toBuilder() : HttpConfiguration.builder();
-        try (var client = new HttpClient(runContext, configBuilder.build())) {
+        try (var client = new HttpClient(runContext, clientConfiguration(options))) {
             return request(client, runContext, apiToken, requestBuilder, responseType, acceptHeader);
         }
     }
@@ -404,8 +413,7 @@ public abstract class AbstractDigitalOceanTask extends Task {
 
         // One HttpClient (and its connection pool) for every page of this call, instead of a fresh
         // client, and a fresh TLS handshake, per page.
-        var configBuilder = options != null ? options.toBuilder() : HttpConfiguration.builder();
-        try (var client = new HttpClient(runContext, configBuilder.build())) {
+        try (var client = new HttpClient(runContext, clientConfiguration(options))) {
             while (url != null) {
                 pageCount++;
                 if (pageCount > maxPages) {
