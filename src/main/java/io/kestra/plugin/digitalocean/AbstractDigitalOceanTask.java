@@ -108,12 +108,7 @@ public abstract class AbstractDigitalOceanTask extends Task {
         );
     }
 
-    /**
-     * Passes the caller's HTTP options through unchanged.
-     * Copying with {@code toBuilder()} is unsafe on Kestra 1.3: the deprecated
-     * {@code basicAuthUser}/{@code basicAuthPassword} builder methods replace {@code auth}
-     * with basic auth {@code null:null}, and the client then overwrites the bearer token.
-     */
+    // toBuilder() on Kestra 1.3 injects basic auth null:null, which overrides the Bearer header.
     protected static HttpConfiguration clientConfiguration(HttpConfiguration options) {
         return options != null ? options : HttpConfiguration.builder().build();
     }
