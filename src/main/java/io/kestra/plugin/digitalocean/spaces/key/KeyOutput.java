@@ -29,6 +29,10 @@ public class KeyOutput implements Output {
     @Schema(title = "Creation timestamp")
     private final Instant createdAt;
 
+    // Declared so javadoc, which runs without Lombok, can resolve the builder type in withKeyFields' signature.
+    public abstract static class KeyOutputBuilder<C extends KeyOutput, B extends KeyOutputBuilder<C, B>> {
+    }
+
     public static KeyOutput from(Map<String, Object> key) {
         return withKeyFields(KeyOutput.builder(), key).build();
     }
