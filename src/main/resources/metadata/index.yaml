@@ -1,7 +1,7 @@
 group: io.kestra.plugin.digitalocean
 name: "digitalocean"
 title: "DigitalOcean"
-description: "Manage DigitalOcean droplets, Kubernetes clusters, databases, load balancers, volumes, snapshots, domains, firewalls, monitoring alert policies, droplet metrics, billing, Spaces access keys, security scans and settings, and CDN endpoints through the DigitalOcean API v2."
+description: "Manage DigitalOcean droplets, Kubernetes clusters, databases, load balancers, volumes, snapshots, domains, firewalls, monitoring alert policies, droplet metrics, billing, Spaces access keys, security scans and settings, CDN endpoints, and reserved IPs through the DigitalOcean API v2."
 body: ""
 videos: []
 createdBy: "Kestra Core Team"
