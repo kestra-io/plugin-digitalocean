@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.app.deployment
+name: "deployment"
+title: "DigitalOcean App Platform Deployment"
+description: "Tasks for DigitalOcean App Platform deployments."
+body: "Start a deployment of an App Platform app, follow its phase until it is live or failed, list past deployments, and cancel one in progress."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

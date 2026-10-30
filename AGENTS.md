@@ -6,7 +6,7 @@
 - Manages DigitalOcean cloud resources through the DigitalOcean API v2 (`https://api.digitalocean.com`):
   droplets, Kubernetes clusters, managed databases, load balancers, block storage volumes, droplet and
   volume snapshots, domain zones and their DNS records, cloud firewalls, read-only billing, Spaces access
-  keys, security (CSPM) scans and settings, and CDN endpoints.
+  keys, security (CSPM) scans and settings, CDN endpoints, and App Platform deployments.
 - Includes a polling trigger (`droplet.Trigger`) that fires when a new droplet appears on the account.
 
 ## Why
@@ -63,6 +63,8 @@ Source packages under `io.kestra.plugin.digitalocean`:
   package-private `SuppressionPage`; `UpdatePlan` takes a map of `TierCoverage` beans.
 - `cdn`: `List`, `Get`, `Create`, `Update`, `Delete`, `PurgeCache` for CDN endpoints (`/v2/cdn/endpoints`). `Create` and
   `Update` check `ttl` against the five values the API accepts; `PurgeCache` sends the paths in a DELETE body.
+- `app.deployment`: `Create`, `Get`, `List`, `Cancel` for App Platform deployments (`/v2/apps/{app_id}/deployments`).
+  `DeploymentOutput` reads the reason of the first failed step into `errorMessage`; `List` drops the app spec and the steps from each row.
 
 Each resource package has a shared `<Resource>Output` class (e.g. `DropletOutput`, `ClusterOutput`) reused
 by its `Get` and `Create` (and `Update` where applicable) tasks, since both return the same JSON shape.
@@ -113,7 +115,9 @@ plugin-digitalocean/
 │   ├── security/
 │   │   ├── scan/
 │   │   └── settings/
-│   └── cdn/
+│   ├── cdn/
+│   └── app/
+│       └── deployment/
 ├── src/test/java/io/kestra/plugin/digitalocean/ (WireMock-based tests, one class per task/trigger)
 ├── build.gradle
 └── README.md
