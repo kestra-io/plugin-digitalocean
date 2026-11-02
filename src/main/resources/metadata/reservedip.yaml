@@ -1,0 +1,8 @@
+group: io.kestra.plugin.digitalocean.reservedip
+name: "reservedip"
+title: "DigitalOcean Reserved IP"
+description: "Tasks for moving DigitalOcean reserved IPs between Droplets."
+body: "Assign a reserved IP to a Droplet, unassign it, and follow the action until it completes, e.g. to fail over to a standby Droplet."
+videos: []
+createdBy: "Kestra Core Team"
+managedBy: "Kestra Core Team"

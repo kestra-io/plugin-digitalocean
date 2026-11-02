@@ -6,7 +6,7 @@
 - Manages DigitalOcean cloud resources through the DigitalOcean API v2 (`https://api.digitalocean.com`):
   droplets, Kubernetes clusters, managed databases, load balancers, block storage volumes, droplet and
   volume snapshots, domain zones and their DNS records, cloud firewalls, read-only billing, Spaces access
-  keys, security (CSPM) scans and settings, CDN endpoints, and App Platform deployments.
+  keys, security (CSPM) scans and settings, CDN endpoints, App Platform deployments, and reserved IP assignment.
 - Includes a polling trigger (`droplet.Trigger`) that fires when a new droplet appears on the account.
 
 ## Why
@@ -31,7 +31,7 @@ class's static helpers instead of extending it. Every `List` task extends
 `run()` template method; a subclass only supplies the endpoint path, JSON array key, a log label, and
 (for `database.List`) a row-sanitizing hook. `requireRendered(runContext, property, type, name)` on
 `AbstractDigitalOceanTask` replaces the repeated `render(...).as(...).orElseThrow(...)` pattern for
-required properties.
+required properties, and `parseDropletId(String)` there is the shared numeric droplet id check (volume `Attach`/`Detach`, `reservedip.Assign`).
 
 Source packages under `io.kestra.plugin.digitalocean`:
 
@@ -65,6 +65,9 @@ Source packages under `io.kestra.plugin.digitalocean`:
   `Update` check `ttl` against the five values the API accepts; `PurgeCache` sends the paths in a DELETE body.
 - `app.deployment`: `Create`, `Get`, `List`, `Cancel` for App Platform deployments (`/v2/apps/{app_id}/deployments`).
   `DeploymentOutput` reads the reason of the first failed step into `errorMessage`; `List` drops the app spec and the steps from each row.
+- `reservedip`: `Assign`, `Unassign`, `GetAction` for reserved IP actions (`/v2/reserved_ips/{ip}/actions`). All three return
+  `AbstractDigitalOceanTask.ActionOutput`, so a `LoopUntil` on `GetAction` waits for the move to complete. `reservedIp` must be a
+  dotted-quad IPv4 and `GetAction.actionId` numeric, both checked before any request by the package-private `ReservedIpValidation`.
 
 Each resource package has a shared `<Resource>Output` class (e.g. `DropletOutput`, `ClusterOutput`) reused
 by its `Get` and `Create` (and `Update` where applicable) tasks, since both return the same JSON shape.
@@ -116,8 +119,9 @@ plugin-digitalocean/
 │   │   ├── scan/
 │   │   └── settings/
 │   ├── cdn/
-│   └── app/
-│       └── deployment/
+│   ├── app/
+│   │   └── deployment/
+│   └── reservedip/
 ├── src/test/java/io/kestra/plugin/digitalocean/ (WireMock-based tests, one class per task/trigger)
 ├── build.gradle
 └── README.md

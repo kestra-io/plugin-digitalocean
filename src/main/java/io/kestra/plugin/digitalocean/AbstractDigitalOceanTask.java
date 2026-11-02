@@ -108,6 +108,17 @@ public abstract class AbstractDigitalOceanTask extends Task {
         );
     }
 
+    /** DigitalOcean droplet ids are numeric; reject anything else with an actionable message instead of a raw NumberFormatException. */
+    public static Long parseDropletId(String dropletId) {
+        try {
+            return Long.valueOf(dropletId);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "dropletId must be a numeric DigitalOcean droplet id, got '" + dropletId + "'", e
+            );
+        }
+    }
+
     // toBuilder() on Kestra 1.3 injects basic auth null:null, which overrides the Bearer header.
     protected static HttpConfiguration clientConfiguration(HttpConfiguration options) {
         return options != null ? options : HttpConfiguration.builder().build();

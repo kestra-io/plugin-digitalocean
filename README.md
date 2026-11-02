@@ -45,7 +45,7 @@
 
 ## What
 
-- Provides plugin components under `io.kestra.plugin.digitalocean`, covering droplets, Kubernetes clusters, managed databases, load balancers, block storage volumes, droplet and volume snapshots (`snapshot`), domain zones (`domain`) and their DNS records (`domain.record`), cloud firewalls, monitoring alert policies and Droplet metrics (`monitoring`), read-only billing (`billing`), Spaces access keys (`spaces.key`), security scans and settings (`security.scan`, `security.settings`), CDN endpoints (`cdn`), and App Platform deployments (`app.deployment`).
+- Provides plugin components under `io.kestra.plugin.digitalocean`, covering droplets, Kubernetes clusters, managed databases, load balancers, block storage volumes, droplet and volume snapshots (`snapshot`), domain zones (`domain`) and their DNS records (`domain.record`), cloud firewalls, monitoring alert policies and Droplet metrics (`monitoring`), read-only billing (`billing`), Spaces access keys (`spaces.key`), security scans and settings (`security.scan`, `security.settings`), CDN endpoints (`cdn`), App Platform deployments (`app.deployment`), and reserved IP assignment (`reservedip`).
 - Includes a polling trigger, `droplet.Trigger`, that fires when a new droplet appears on the account.
 
 ## Documentation

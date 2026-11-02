@@ -72,7 +72,7 @@ public class Attach extends AbstractDigitalOceanTask implements RunnableTask<Abs
         var rApiToken = renderApiToken(runContext);
         var rBaseUrl = renderBaseUrl(runContext);
 
-        var payload = VolumeActionPayload.build("attach", VolumeActionPayload.parseDropletId(rDropletId), rRegion);
+        var payload = VolumeActionPayload.build("attach", parseDropletId(rDropletId), rRegion);
 
         logger.info("Attaching DigitalOcean volume {} to droplet {}", rVolumeId, rDropletId);
 

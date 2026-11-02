@@ -1,7 +1,7 @@
 # How to use the DigitalOcean plugin
 
 This plugin manages DigitalOcean cloud resources (droplets, Kubernetes clusters, databases, load balancers,
-volumes, snapshots, domains, firewalls, billing, Spaces access keys, security scans and settings, CDN endpoints, and App Platform deployments) through the [DigitalOcean API v2](https://docs.digitalocean.com/reference/api/).
+volumes, snapshots, domains, firewalls, billing, Spaces access keys, security scans and settings, CDN endpoints, App Platform deployments, and reserved IPs) through the [DigitalOcean API v2](https://docs.digitalocean.com/reference/api/).
 
 ## Authentication
 
@@ -83,6 +83,8 @@ pagination automatically and reporting the API's `total` count regardless of `fe
 - **`app.deployment`**: `Create`, `Get`, `List`, and `Cancel` for App Platform deployments. `Create` returns as soon as
   the deployment is scheduled: poll `Get` in a `LoopUntil` until `phase` is ACTIVE, or ERROR, CANCELED, or SUPERSEDED.
   When a step fails, `errorMessage` carries its reason.
+- **`reservedip`**: `Assign`, `Unassign`, and `GetAction` to move a reserved IP between Droplets, e.g. to fail over to a
+  standby Droplet. The move is asynchronous: poll `GetAction` until `status` is completed.
 
 Kubernetes node pools (`kubernetes.Create.nodePools`, a `NodePool` with `size`, `name`, `count`) and load
 balancer forwarding rules (`loadbalancer.Create`/`Update.forwardingRules`, a `ForwardingRule` with
